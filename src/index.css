@@ -1,0 +1,313 @@
+@import "tailwindcss";
+
+/* ============================================
+   ReguloMe — Global Design Tokens & Styles
+   ============================================ */
+
+/* stylelint-disable at-rule-no-unknown */
+/* @theme is a Tailwind CSS v4 directive — the IDE warning is a false positive */
+@theme {
+  /* === Color Palette === */
+  --color-rg-bg-primary: #0a0e1a;
+  --color-rg-bg-secondary: #111827;
+  --color-rg-bg-tertiary: #1a2035;
+  --color-rg-bg-card: #151c2e;
+  --color-rg-bg-glass: rgba(21, 28, 46, 0.7);
+  --color-rg-bg-hover: #1e2a42;
+
+  --color-rg-border: rgba(56, 78, 122, 0.3);
+  --color-rg-border-light: rgba(56, 78, 122, 0.15);
+
+  --color-rg-text-primary: #e8edf5;
+  --color-rg-text-secondary: #8899b8;
+  --color-rg-text-muted: #6b7d9c;
+
+  /* Teal accent */
+  --color-rg-teal-50: #edfffe;
+  --color-rg-teal-100: #c0fff9;
+  --color-rg-teal-200: #81fff3;
+  --color-rg-teal-300: #3afee9;
+  --color-rg-teal-400: #0ae8d2;
+  --color-rg-teal-500: #00ccb8;
+  --color-rg-teal-600: #00a498;
+  --color-rg-teal-700: #008279;
+  --color-rg-teal-800: #046762;
+  --color-rg-teal-900: #085550;
+
+  /* Purple accent */
+  --color-rg-purple-50: #f3f0ff;
+  --color-rg-purple-100: #e0d5ff;
+  --color-rg-purple-200: #c4b0ff;
+  --color-rg-purple-300: #a78bff;
+  --color-rg-purple-400: #8b5cf6;
+  --color-rg-purple-500: #7c3aed;
+  --color-rg-purple-600: #6d28d9;
+  --color-rg-purple-700: #5b21b6;
+  --color-rg-purple-800: #4c1d95;
+  --color-rg-purple-900: #3b0f7a;
+
+  /* Semantic colors */
+  --color-rg-success: #10b981;
+  --color-rg-warning: #f59e0b;
+  --color-rg-error: #ef4444;
+  --color-rg-info: #3b82f6;
+
+  /* Evidence level colors */
+  --color-rg-validated: #10b981;
+  --color-rg-literature: #3b82f6;
+  --color-rg-predicted: #f59e0b;
+  --color-rg-inferred: #8b5cf6;
+
+  /* Glow colors */
+  --color-rg-glow-teal: rgba(0, 204, 184, 0.15);
+  --color-rg-glow-purple: rgba(139, 92, 246, 0.15);
+  --color-rg-glow-teal-strong: rgba(0, 204, 184, 0.3);
+  --color-rg-glow-purple-strong: rgba(139, 92, 246, 0.3);
+
+  /* === Typography === */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* === Spacing extras === */
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+
+  /* === Border Radius === */
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* === Shadows === */
+  --shadow-glow-teal: 0 0 20px rgba(0, 204, 184, 0.15), 0 0 40px rgba(0, 204, 184, 0.05);
+  --shadow-glow-purple: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 40px rgba(139, 92, 246, 0.05);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 8px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* === Base styles === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-rg-bg-primary);
+  color: var(--color-rg-text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-width: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-rg-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-rg-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-rg-text-muted);
+}
+
+/* === Utility Classes === */
+.glass-panel {
+  background: var(--color-rg-bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-rg-border);
+  border-radius: var(--radius-xl);
+}
+
+.glass-panel-strong {
+  background: rgba(21, 28, 46, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-rg-border);
+  border-radius: var(--radius-xl);
+}
+
+.glow-teal {
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.glow-purple {
+  box-shadow: var(--shadow-glow-purple);
+}
+
+.gradient-teal-purple {
+  background: linear-gradient(135deg, var(--color-rg-teal-500), var(--color-rg-purple-500));
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-rg-teal-400), var(--color-rg-purple-400));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-teal {
+  background: linear-gradient(135deg, var(--color-rg-teal-300), var(--color-rg-teal-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-purple {
+  background: linear-gradient(135deg, var(--color-rg-purple-300), var(--color-rg-purple-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Evidence badges */
+.evidence-validated {
+  color: var(--color-rg-validated);
+  border-color: var(--color-rg-validated);
+}
+
+.evidence-literature {
+  color: var(--color-rg-literature);
+  border-color: var(--color-rg-literature);
+}
+
+.evidence-predicted {
+  color: var(--color-rg-predicted);
+  border-color: var(--color-rg-predicted);
+}
+
+.evidence-inferred {
+  color: var(--color-rg-inferred);
+  border-color: var(--color-rg-inferred);
+}
+
+/* Animated background gradient */
+@keyframes gradient-shift {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animated-gradient-bg {
+  background: linear-gradient(-45deg,
+      var(--color-rg-bg-primary),
+      var(--color-rg-bg-secondary),
+      rgba(0, 204, 184, 0.05),
+      rgba(139, 92, 246, 0.05));
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Pulse glow animation */
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Fade In Up animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Shimmer gradient animation for landing page headline */
+@keyframes shimmer {
+  0% {
+    background-position: 0% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* ════════════════════════════════════════════
+   CUSTOM SCROLLBAR — Dark glass, teal thumb
+   ════════════════════════════════════════════ */
+
+/* WebKit (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 14, 26, 0.4);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 78, 122, 0.5);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 204, 184, 0.55);
+  box-shadow: 0 0 8px rgba(0, 204, 184, 0.4);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(0, 204, 184, 0.8);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 78, 122, 0.5) rgba(10, 14, 26, 0.4);
+}

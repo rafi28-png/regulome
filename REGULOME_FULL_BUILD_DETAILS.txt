@@ -1,0 +1,544 @@
+================================================================================
+              REGULOME — COMPLETE PLATFORM BUILD DETAILS
+================================================================================
+Generated: May 2, 2026
+Total Code: ~600KB+ across 70+ files
+
+================================================================================
+1. WHAT IS REGULOME?
+================================================================================
+ReguloMe is a next-generation regulatory genomics platform that lets users
+interpret, visualize, simulate, and optimize the human non-coding regulatory
+genome. It features a cinematic "God-Mode" UI with glassmorphism, neon gradients,
+and smooth animations throughout.
+
+================================================================================
+2. TECH STACK
+================================================================================
+FRONTEND:
+  • React 18 + TypeScript
+  • Vite (build tool & dev server)
+  • Framer Motion (animations)
+  • Recharts (charts & graphs)
+  • React Three Fiber + Three.js (3D genome visualization)
+  • Lucide React (icons)
+  • TailwindCSS + Custom CSS (styling)
+  • React Router DOM (routing)
+
+BACKEND:
+  • Python FastAPI
+  • SQLite (auth + bookmarks database)
+  • Uvicorn (ASGI server)
+  • External APIs: Ensembl, ClinVar, GTEx, Open Targets
+
+STATE MANAGEMENT:
+  • Custom React Context (AppContext)
+  • LocalStorage persistence for mode, persona, user identity, upload state
+
+================================================================================
+3. PROJECT FILE STRUCTURE
+================================================================================
+
+e:\regulome\
+├── src/
+│   ├── main.tsx                    — App entry point
+│   ├── router.tsx                  — All route definitions
+│   ├── index.css                   — Global styles & design tokens
+│   │
+│   ├── context/
+│   │   └── AppContext.tsx           — Global state (mode, persona, auth, upload)
+│   │
+│   ├── pages/ (20 pages)
+│   │   ├── LandingPage.tsx          — Public marketing page (61KB)
+│   │   ├── OnboardingPage.tsx       — Multi-step setup wizard (31KB)
+│   │   ├── LoginPage.tsx            — Authentication login (27KB)
+│   │   ├── SignupPage.tsx           — Account creation (35KB)
+│   │   ├── DashboardPage.tsx        — Main command center (31KB)
+│   │   ├── DataStudioPage.tsx       — File upload & analysis pipeline (11KB)
+│   │   ├── VariantExplorerPage.tsx   — Variant table browser (28KB)
+│   │   ├── VariantDetailPage.tsx    — Single variant deep-dive (39KB)
+│   │   ├── GeneExpressionPage.tsx   — Tissue expression heatmaps (32KB)
+│   │   ├── NetworkAtlasPage.tsx     — D3 regulatory network graph (35KB)
+│   │   ├── GenomeExplorerPage.tsx   — 3D chromosome visualization (48KB)
+│   │   ├── HotspotAtlasPage.tsx     — Genomic coordinate clusters (22KB)
+│   │   ├── DiseaseHubPage.tsx       — Disease pathway analysis (32KB)
+│   │   ├── EpigeneticClockPage.tsx  — Biological age models (25KB)
+│   │   ├── SimulatorPage.tsx        — What-if lifestyle simulator (23KB)
+│   │   ├── OptimizationStudioPage.tsx — Healthspan recommendations (48KB)
+│   │   ├── EvidenceStudioPage.tsx   — Scientific literature links (27KB)
+│   │   ├── ResearchWorkbenchPage.tsx — Live API query terminal (25KB)
+│   │   ├── ReportCenterPage.tsx     — Report generation hub (15KB)
+│   │   └── DesignSystemPage.tsx     — Component showcase (14KB)
+│   │
+│   ├── components/
+│   │   ├── ui/ (13 reusable components)
+│   │   │   ├── Button.tsx           — Glow effects, variants
+│   │   │   ├── GlassCard.tsx        — Glassmorphism panels
+│   │   │   ├── Badge.tsx            — Status badges
+│   │   │   ├── Input.tsx            — Form inputs
+│   │   │   ├── Select.tsx           — Dropdown selects
+│   │   │   ├── Modal.tsx            — Dialog overlays
+│   │   │   ├── Drawer.tsx           — Slide-out panels
+│   │   │   ├── ScoreGauge.tsx       — Circular score indicators
+│   │   │   ├── ErrorState.tsx       — Error display component
+│   │   │   ├── Loaders.tsx          — Loading animations
+│   │   │   ├── SkeletonLoaders.tsx  — Content placeholder skeletons
+│   │   │   ├── Primitives.tsx       — Base UI primitives
+│   │   │   └── index.ts            — Barrel exports
+│   │   ├── layout/ (5 files)
+│   │   │   ├── AppLayout.tsx        — Main app shell with sidebar
+│   │   │   ├── Sidebar.tsx          — Navigation sidebar
+│   │   │   ├── Topbar.tsx           — Top navigation bar
+│   │   │   ├── BottomNav.tsx        — Mobile bottom navigation
+│   │   │   └── CommandPalette.tsx   — Ctrl+K search palette
+│   │   ├── genome/ (2 files)
+│   │   │   ├── ChromosomeScene3D.tsx     — 3D chromosome renderer
+│   │   │   └── NuclearTerritoryScene.tsx — Nuclear territory view
+│   │   └── common/
+│   │       └── PlaceholderPage.tsx
+│   │
+│   ├── data/ (11 static data files)
+│   │   ├── dashboardData.ts         — Dashboard stats & charts
+│   │   ├── variantData.ts           — Variant explorer entries
+│   │   ├── variantDetailData.ts     — Single variant detail data
+│   │   ├── geneExpressionData.ts    — Tissue expression matrices
+│   │   ├── networkAtlasData.ts      — Network graph nodes/edges
+│   │   ├── genomeExplorerData.ts    — 3D genome coordinates
+│   │   ├── diseaseHubData.ts        — Disease pathway mappings
+│   │   ├── epigeneticClockData.ts   — DNAm clock model data
+│   │   ├── optimizationData.ts      — Lifestyle recommendations
+│   │   ├── evidenceData.ts          — Scientific literature data
+│   │   └── index.ts
+│   │
+│   ├── hooks/
+│   │   └── useApi.ts               — API hook (skips network in demo)
+│   │
+│   ├── services/
+│   │   └── api.ts                  — HTTP client with auth tokens
+│   │
+│   ├── lib/
+│   │   └── storage.ts              — LocalStorage helpers & keys
+│   │
+│   └── types/                      — TypeScript type definitions
+│
+├── backend/
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py                  — FastAPI app factory
+│       ├── core/
+│       │   ├── config.py            — Settings & environment
+│       │   ├── database.py          — SQLite initialization
+│       │   ├── exceptions.py        — Error handlers
+│       │   └── middleware.py        — Timing & demo-mode middleware
+│       ├── routers/ (15 API routers)
+│       │   ├── auth.py              — POST /auth/signup, /auth/login
+│       │   ├── bookmarks.py         — CRUD /bookmarks
+│       │   ├── genomics.py          — Live API queries (Ensembl/ClinVar)
+│       │   ├── health.py            — GET /health
+│       │   ├── dashboard.py         — Dashboard aggregation
+│       │   ├── variants.py          — Variant data endpoints
+│       │   ├── expression.py        — Gene expression endpoints
+│       │   ├── network.py           — Network graph endpoints
+│       │   ├── diseases.py          — Disease hub endpoints
+│       │   ├── epigenetic.py        — Clock model endpoints
+│       │   ├── optimization.py      — Optimization endpoints
+│       │   ├── simulator.py         — Twin simulator endpoints
+│       │   ├── personas.py          — Demo persona profiles
+│       │   └── reports.py           — Report generation
+│       ├── services/ (14 service files)
+│       │   ├── auth_service.py      — Password hashing, JWT tokens
+│       │   ├── bookmark_service.py  — SQLite bookmark CRUD
+│       │   ├── genomics_api.py      — Ensembl/ClinVar/GTEx client (18KB)
+│       │   ├── variant_service.py   — Variant analysis logic (14KB)
+│       │   ├── disease_service.py   — Disease pathway logic (10KB)
+│       │   └── ... (9 more service files)
+│       ├── models/                  — SQLAlchemy/Pydantic models
+│       └── schemas/                 — Request/Response schemas
+│
+├── package.json
+├── vite.config.ts
+├── tailwind.config.js
+└── tsconfig.json
+
+================================================================================
+4. DESIGN SYSTEM — "GOD-MODE" AESTHETIC
+================================================================================
+
+COLOR PALETTE:
+  • Background:    #0a0e1a (deep space navy)
+  • Card BG:       rgba(17,24,39,0.6) with backdrop-blur
+  • Teal accent:   #0ae8d2 (demo mode)
+  • Purple accent:  #a78bfa / #8b5cf6 (real mode)
+  • Text primary:  #e8edf5
+  • Text secondary: #8899b8
+  • Text muted:    #6b7d9c
+  • Success:       #10b981
+  • Warning:       #f59e0b
+  • Error:         #ef4444
+
+DESIGN PATTERNS:
+  • Glassmorphism: translucent cards with backdrop-blur(24px)
+  • Floating orbs: animated gradient spheres behind hero sections
+  • Neon glow: box-shadow with colored halos on buttons/cards
+  • Staggered entry: child elements fade in sequentially
+  • Smooth page transitions via Framer Motion
+  • Custom scrollbars matching the dark theme
+
+================================================================================
+5. ALL 20 PAGES — DETAILED BREAKDOWN
+================================================================================
+
+─── PUBLIC PAGES (no sidebar) ───
+
+[1] LANDING PAGE (LandingPage.tsx — 61KB)
+    • Hero section with animated DNA helix background
+    • Live statistics counters (variants analyzed, etc.)
+    • Feature showcase cards with hover animations
+    • Persona preview carousel
+    • "Configure Your Digital Twin" CTA button
+    • "Try Demo Mode" quick-start button
+    • Responsive footer with links
+
+[2] ONBOARDING PAGE (OnboardingPage.tsx — 31KB)
+    • 3-step wizard: Data Source → Persona → Review
+    • Step 1: Choose Demo vs Real data source
+    • Step 2: Select research persona (6 options)
+    • Step 3: Review selections with animated summary
+    • Real source shows "Reserved" path for later upload
+    • Demo source loads persona profile instantly
+    • Progress bar with animated transitions
+
+[3] LOGIN PAGE (LoginPage.tsx — 27KB)
+    • Glassmorphism login form
+    • Email + password fields
+    • "Forgot Password" link (UI placeholder)
+    • Stores user identity (name, email) on success
+    • JWT token stored for API authentication
+    • Redirects to dashboard or data studio
+
+[4] SIGNUP PAGE (SignupPage.tsx — 35KB)
+    • Multi-step account creation wizard
+    • Name, email, password fields with validation
+    • Account creation success screen
+    • "Continue to Data Studio" button (real mode)
+    • Stores auth token and user identity
+    • Clears upload state for fresh start
+
+─── APP PAGES (with sidebar layout) ───
+
+[5] DASHBOARD (DashboardPage.tsx — 31KB)
+    • God-Mode hero with mode-aware styling:
+      - Demo: teal accents, persona name, "🎭 DEMO MODE" badge
+      - Real: purple accents, user name, "● REAL MODE · LIVE" badge
+    • Real Mode feature strip (Live APIs, Persistent Data, etc.)
+    • Dashboard LOCKED if real mode + no uploaded data
+    • 4 stat cards: Regulatory Age, Priority Variants, Risk Score, Tissues
+    • Variant Impact by Element bar chart
+    • Regulatory Age Trend line chart
+    • Tissue Heatmap visualization
+    • Disease Risk Panel
+    • Top Variants Table
+    • Activity Feed
+
+[6] DATA STUDIO (DataStudioPage.tsx — 11KB) ★ NEW
+    • Drag-and-drop file upload zone
+    • Accepts .vcf, .vcf.gz, 23andMe .txt, AncestryDNA .txt
+    • File size display and "Remove" option
+    • "Start Analysis Pipeline" button
+    • Cinematic terminal animation showing 11 pipeline steps:
+      1. Initializing analysis core
+      2. Parsing VCF structure
+      3. Quality control metrics
+      4. Mapping to hg38 reference
+      5. Querying ClinVar & dbSNP
+      6. Cross-referencing Ensembl
+      7. Loading deep learning models
+      8. Predicting chromatin loops
+      9. Calculating eQTL impacts
+      10. Computing Epigenetic Age
+      11. Compiling dashboard
+    • Progress bar with percentage
+    • Auto-scrolling terminal log
+    • Blinking cursor animation
+    • On completion: sets hasUploadedData=true, navigates to dashboard
+    • Privacy notice: "Your data never leaves your device"
+
+[7] VARIANT EXPLORER (VariantExplorerPage.tsx — 28KB)
+    • Searchable/filterable variant table
+    • Columns: rsID, gene, location, impact, tissue, significance
+    • Color-coded impact scores (gain/loss)
+    • Click-through to Variant Detail page
+    • Bookmark functionality
+
+[8] VARIANT DETAIL (VariantDetailPage.tsx — 39KB)
+    • Deep-dive into a single regulatory variant
+    • Genomic coordinates and regulatory element type
+    • ClinVar significance badge
+    • Tissue-specific expression impact chart
+    • Regulatory network context
+    • Literature citations
+    • Bookmark toggle
+
+[9] GENE EXPRESSION (GeneExpressionPage.tsx — 32KB)
+    • Tissue × Gene expression heatmap
+    • Expression level color gradients
+    • Tissue category filters
+    • Gene search functionality
+    • Expression distribution charts
+
+[10] NETWORK ATLAS (NetworkAtlasPage.tsx — 35KB)
+    • D3.js force-directed network graph
+    • Nodes: genes, enhancers, promoters
+    • Edges: regulatory connections
+    • Interactive zoom and pan
+    • Node hover tooltips with details
+    • Color-coded by regulatory element type
+
+[11] 3D GENOME EXPLORER (GenomeExplorerPage.tsx — 48KB)
+    • React Three Fiber 3D scene
+    • Nuclear Territory View: all 23 chromosome territories
+    • Chromosome Detail View: individual chromosome structure
+    • Interactive orbit controls (rotate, zoom, pan)
+    • Hover highlights with genomic labels
+    • HUD overlay with zoom controls
+    • Professional lighting and materials
+
+[12] HOTSPOT ATLAS (HotspotAtlasPage.tsx — 22KB)
+    • Genomic coordinate map
+    • Variant cluster visualization
+    • Chromosome ideogram
+    • Hotspot density indicators
+    • Click-to-zoom regions
+
+[13] DISEASE HUB (DiseaseHubPage.tsx — 32KB)
+    • Disease pathway cards organized by biological system
+    • Systems: Cardiovascular, Neurological, Metabolic, Immune, etc.
+    • Risk score gauges per pathway
+    • Variant count per disease association
+    • Expandable pathway details
+
+[14] EPIGENETIC CLOCK (EpigeneticClockPage.tsx — 25KB)
+    • Biological Age circular gauge (31.2 years)
+    • 5 validated clock models:
+      - Horvath (353 CpGs)
+      - Hannum (71 CpGs)
+      - PhenoAge (513 CpGs)
+      - GrimAge (1030 CpGs)
+      - DunedinPACE (173 CpGs)
+    • Age Trajectory line chart (bio vs chrono over time)
+    • Organ-specific aging rates
+    • Methylation site analysis
+
+[15] TWIN SIMULATOR (SimulatorPage.tsx — 23KB)
+    • "What-If" lifestyle modification tool
+    • Interactive sliders for:
+      - Exercise frequency
+      - Sleep quality
+      - Diet composition
+      - Stress levels
+      - Supplement intake
+    • Real-time impact projections
+    • Before/After comparison cards
+    • Projected regulatory age change
+
+[16] OPTIMIZATION STUDIO (OptimizationStudioPage.tsx — 48KB)
+    • Personalized lifestyle recommendations
+    • Priority-ranked action items
+    • Categories: Nutrition, Exercise, Sleep, Supplements
+    • Evidence strength indicators
+    • Expected impact scores
+    • Implementation difficulty ratings
+
+[17] EVIDENCE STUDIO (EvidenceStudioPage.tsx — 27KB)
+    • Scientific literature database
+    • Publication cards with journal, year, DOI
+    • Evidence strength ratings (Strong/Moderate/Preliminary)
+    • Variant-to-study linkages
+    • Search and filter by topic
+
+[18] RESEARCH WORKBENCH (ResearchWorkbenchPage.tsx — 25KB)
+    • Live API query interface
+    • Search by gene name, rsID, or region
+    • Queries real external APIs:
+      - Ensembl REST API
+      - ClinVar database
+      - GTEx expression data
+      - Open Targets genetics
+    • Results displayed in structured cards
+    • Works in BOTH demo and real mode
+
+[19] REPORT CENTER (ReportCenterPage.tsx — 15KB)
+    • Report generation hub
+    • Multiple report types:
+      - Full Regulatory Profile
+      - Variant Summary
+      - Risk Assessment
+      - Research Export
+    • Download format options (PDF, CSV, JSON)
+
+[20] DESIGN SYSTEM (DesignSystemPage.tsx — 14KB)
+    • Internal component showcase
+    • All UI components rendered with examples
+    • Color palette display
+    • Typography scale
+    • Button variants and states
+
+================================================================================
+6. LAYOUT COMPONENTS
+================================================================================
+
+SIDEBAR (Sidebar.tsx — 15KB)
+  • Collapsible navigation menu
+  • Mode-aware identity card:
+    - Demo: teal border, persona name & label
+    - Real: purple border, user name, "Authenticated · Live APIs"
+  • Grouped navigation sections: Core, Visualization, Analysis, etc.
+  • Active route highlighting
+  • Version badge at bottom
+
+TOPBAR (Topbar.tsx — 19KB)
+  • Page title display
+  • Global search bar (Ctrl+K shortcut)
+  • Mode toggle button (DEMO ↔ REAL)
+  • Notification bell with badge count
+  • User avatar dropdown menu:
+    - User name and email
+    - Profile settings link
+    - Sign out button (clears all auth state)
+
+COMMAND PALETTE (CommandPalette.tsx — 11KB)
+  • Ctrl+K activated search overlay
+  • Fuzzy search across all pages
+  • Keyboard navigation (arrow keys + enter)
+  • Recent searches history
+
+APP LAYOUT (AppLayout.tsx — 4KB)
+  • Wraps all /app/* routes
+  • Renders Sidebar + Topbar + content area
+  • Handles responsive layout
+
+================================================================================
+7. BACKEND API (FastAPI + Python)
+================================================================================
+
+SERVER: uvicorn running on http://localhost:8000
+DOCS: http://localhost:8000/docs (Swagger UI)
+
+ENDPOINTS:
+  POST /api/v1/auth/signup     — Create account (name, email, password)
+  POST /api/v1/auth/login      — Login (returns JWT token)
+  GET  /api/v1/health          — Server health check
+  GET  /api/v1/bookmarks       — List saved bookmarks
+  POST /api/v1/bookmarks       — Create bookmark
+  DEL  /api/v1/bookmarks/:id   — Delete bookmark
+  GET  /api/v1/genomics/gene/:name    — Ensembl gene lookup
+  GET  /api/v1/genomics/variant/:rsid — ClinVar variant lookup
+  GET  /api/v1/genomics/expression/:gene — GTEx expression data
+
+DATABASE: SQLite (auto-created)
+  • users table: id, name, email, password_hash, created_at
+  • bookmarks table: id, user_id, variant_id, label, created_at
+
+SERVICES (14 files):
+  • genomics_api.py (18KB) — Real API client for Ensembl/ClinVar/GTEx
+  • variant_service.py (14KB) — Variant analysis business logic
+  • disease_service.py (10KB) — Disease pathway computations
+  • auth_service.py — JWT token generation & password hashing
+  • bookmark_service.py — SQLite CRUD operations
+  • + 9 more domain services
+
+================================================================================
+8. DUAL MODE SYSTEM
+================================================================================
+
+┌─────────────────────────────────────────────────────────┐
+│                    DEMO MODE (🎭)                        │
+├─────────────────────────────────────────────────────────┤
+│ • No login required                                     │
+│ • Teal/blue color scheme                                │
+│ • Uses pre-built personas (6 profiles):                 │
+│   1. Inflammatory Immune-Skewed                         │
+│   2. Metabolic Risk                                     │
+│   3. Centenarian Blueprint                              │
+│   4. Neuroplasticity-Enhanced                           │
+│   5. Athletic Performance                               │
+│   6. Longevity Optimized                                │
+│ • All 14 dashboard modules fully populated              │
+│ • Static data — no API calls needed                     │
+│ • Instant access, zero setup                            │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│                    REAL MODE (🧬)                        │
+├─────────────────────────────────────────────────────────┤
+│ • Requires account signup/login                         │
+│ • Purple color scheme (visually distinct)               │
+│ • Dashboard is LOCKED until data is uploaded             │
+│ • User flow:                                            │
+│   1. Sign up → Account created                          │
+│   2. Redirected to Data Studio                          │
+│   3. Upload .vcf or raw genome file                     │
+│   4. Watch cinematic analysis pipeline (11 steps)       │
+│   5. Dashboard unlocks with personalized data           │
+│ • Live API queries via Research Workbench               │
+│ • Bookmarks persist to SQLite database                  │
+│ • User identity shown in sidebar & topbar               │
+│ • Feature strip: Live APIs, Persistent Data, Auth       │
+└─────────────────────────────────────────────────────────┘
+
+================================================================================
+9. STATE MANAGEMENT (AppContext)
+================================================================================
+
+Global state stored in React Context + LocalStorage:
+
+  mode: 'demo' | 'real'              — Current operating mode
+  currentPersona: DemoPersona | null  — Selected demo profile
+  isAuthenticated: boolean            — Login status
+  userName: string | null             — Logged-in user's name
+  userEmail: string | null            — Logged-in user's email
+  hasUploadedData: boolean            — Data Studio completion flag
+  sidebarOpen: boolean                — Sidebar visibility
+  sidebarCollapsed: boolean           — Sidebar compact mode
+
+LocalStorage Keys:
+  regulome:mode                       — Persisted mode selection
+  regulome:persona                    — Persisted persona JSON
+  regulome:auth-token                 — JWT authentication token
+  regulome:is-authenticated           — Auth flag
+  regulome:user-name                  — User display name
+  regulome:user-email                 — User email
+  regulome:has-uploaded-data          — Upload completion flag
+
+================================================================================
+10. HOW TO RUN THE PLATFORM
+================================================================================
+
+TERMINAL 1 — Frontend:
+  cd e:\regulome
+  npm run dev
+  → Opens at http://localhost:5173
+
+TERMINAL 2 — Backend:
+  cd e:\regulome\backend
+  pip install -r requirements.txt
+  uvicorn app.main:app --reload --port 8000
+  → API at http://localhost:8000
+  → Docs at http://localhost:8000/docs
+
+================================================================================
+11. SUMMARY STATISTICS
+================================================================================
+
+  Total pages:           20
+  Total components:      25+
+  Total data files:      11
+  Total backend routers: 15
+  Total backend services:14
+  Frontend code size:    ~550KB
+  Backend code size:     ~100KB
+  External API integrations: 4 (Ensembl, ClinVar, GTEx, Open Targets)
+
+================================================================================
+END OF BUILD SUMMARY
+================================================================================

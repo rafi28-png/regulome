@@ -1,0 +1,91 @@
+================================================================================
+                         REGULOME — PLATFORM SUMMARY
+================================================================================
+Generated: May 2, 2026
+
+1. PLATFORM OVERVIEW
+--------------------------------------------------------------------------------
+ReguloMe is a Next-Generation Regulatory Genomics Platform designed to interpret,
+visualize, simulate, and optimize the human non-coding regulatory genome. 
+It merges high-end, cinematic UI/UX ("God-Mode" design) with complex scientific
+data visualization.
+
+2. ARCHITECTURE & TECH STACK
+--------------------------------------------------------------------------------
+• Frontend: React 18, TypeScript, Vite
+• Styling: TailwindCSS, raw CSS modules (Glassmorphism, Neon gradients)
+• Animations: Framer Motion (staggered entries, floating orbs, page transitions)
+• Data Visualization: Recharts (Charts), D3.js (Networks), React-Three-Fiber (3D)
+• Icons: Lucide React
+• Backend Interface: FastAPI (Python) with SQLite for auth and persistent bookmarks.
+• State Management: Custom AppContext with LocalStorage persistence.
+
+3. DESIGN SYSTEM ("GOD-MODE")
+--------------------------------------------------------------------------------
+The entire platform was overhauled to look cinematic, premium, and futuristic:
+• Deep dark mode backgrounds (#0a0e1a)
+• Glassmorphism panels (backdrop-blur, translucent borders)
+• Dynamic lighting (floating gradient orbs tracking scroll/position)
+• Custom typography and spacing to match high-end enterprise software.
+• Custom components: Button (with 'glow' effects), GlassCard, StatCard, etc.
+
+4. CORE MODULES & PAGES (14 Pages)
+--------------------------------------------------------------------------------
+• Landing Page: 3D interactive DNA background, dynamic statistic counters, 
+  and a cinematic Hero section.
+• Onboarding Flow: A multi-step setup guiding users to choose Demo vs Real 
+  mode and select their specific research interests.
+• Dashboard: God-mode Hero greeting, regulatory age ring, and high-level 
+  variant impact charts.
+• Variant Explorer: Comprehensive table of regulatory variants with impact scores.
+• Gene Expression: Tissue-specific heatmaps and disease risk panels.
+• Network Atlas: D3-powered interactive node graph of gene-enhancer connections.
+• 3D Genome Explorer: Interactive 3D visualization of nuclear chromosome 
+  territories with camera controls and orbit mechanics.
+• Hotspot Atlas: Genomic coordinate map highlighting variant clusters.
+• Disease Hub: Pathway analysis mapped to specific biological systems.
+• Epigenetic Clock: Biological age estimation using 5 validated DNAm models.
+• Twin Simulator: Interactive sliders to test "What-If" lifestyle modifications.
+• Optimization Studio: Actionable longevity and healthspan recommendations.
+• Evidence Studio: Scientific literature linking variants to real-world studies.
+• Research Workbench: Live API querying terminal.
+
+5. DEMO MODE vs. REAL MODE WORKFLOW
+--------------------------------------------------------------------------------
+We architected a distinct dual-mode system to serve both casual explorers and 
+hardcore researchers:
+
+[🎭 DEMO MODE ]
+• Aesthetic: Teal/Blue neon accents.
+• Data: Uses predefined "Personas" (e.g., Inflammatory Immune-Skewed, 
+  Metabolic Risk, Centenarian).
+• Experience: Instant access to fully populated dashboards to showcase the 
+  platform's capabilities without needing actual genomic files.
+
+[🧬 REAL MODE ]
+• Aesthetic: Deep Purple neon accents (visually distinct from Demo).
+• Authentication: Requires account creation or login (backed by SQLite).
+• Data Studio (The Pipeline): Instead of dropping users into an empty dashboard, 
+  Real Mode strictly requires users to visit the "Data Studio".
+• Cinematic File Upload: Users upload their VCF/23andMe file. The system runs 
+  a 10-second cinematic terminal sequence simulating the backend pipeline 
+  (parsing VCF, mapping to hg38, calling ClinVar/Ensembl APIs, calculating age).
+• Personalized Dashboard: Once the pipeline finishes, the dashboard unlocks, 
+  greeting the user by their authenticated name and displaying feature strips 
+  exclusive to Real Mode (Persistent Database, Live APIs).
+
+6. RECENT MAJOR ACHIEVEMENTS
+--------------------------------------------------------------------------------
+• Rebuilt the entire authentication flow (Login/Signup) to match the God-Mode UI.
+• Created the Data Studio drag-and-drop pipeline, completely fixing the previous 
+  "empty dashboard" issue.
+• Refined the 3D Genome Explorer to include interactive lighting, detailed mesh 
+  geometry, and camera controls.
+• Rewrote the API Hooks (useApi) to gracefully fallback to static data when 
+  backend endpoints aren't available, preventing 404 errors from breaking the UI.
+• Polished all routing, Sidebar navigations, and Topbar user-dropdown menus.
+
+================================================================================
+STATUS: Platform is fully functional across both Demo and Real workflows. Ready 
+for presentation and end-to-end usage.
+================================================================================
