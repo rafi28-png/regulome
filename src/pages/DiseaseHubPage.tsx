@@ -28,12 +28,8 @@ import {
   TableSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
-  diseaseDomains,
-  diseaseVariantLinks,
-  pathwayConnections,
-  diseaseStats,
   type DiseaseDomain,
   type DiseaseVariantLink,
 } from '@/data/diseaseHubData';
@@ -117,6 +113,8 @@ function BurdenRing({
    HERO SECTION  (with floating orbs)
    ────────────────────────────────────────────── */
 function HeroSection() {
+  const { profile } = useRegulatoryProfile();
+  const diseaseStats = profile.diseases.stats;
   return (
     <motion.div variants={stagger.item}>
       <div style={{
@@ -432,6 +430,9 @@ function RiskVariantTable({ links }: { links: DiseaseVariantLink[] }) {
    CROSS-DOMAIN PATHWAYS  (god-mode premium connections)
    ────────────────────────────────────────────── */
 function PathwayConnectionsPanel() {
+  const { profile } = useRegulatoryProfile();
+  const diseaseDomains = profile.diseases.domains;
+  const pathwayConnections = profile.diseases.pathwayConnections;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6 }}>
@@ -449,7 +450,7 @@ function PathwayConnectionsPanel() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginTop: 32 }}>
-        {pathwayConnections.sort((a, b) => b.strength - a.strength).map((conn, i) => {
+        {[...pathwayConnections].sort((a, b) => b.strength - a.strength).map((conn, i) => {
           const from = diseaseDomains.find((d) => d.id === conn.from);
           const to = diseaseDomains.find((d) => d.id === conn.to);
           if (!from || !to) return null;
@@ -566,13 +567,15 @@ function PathwayConnectionsPanel() {
    MAIN PAGE
    ────────────────────────────────────────────── */
 export default function DiseaseHubPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/diseases');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const diseaseDomains = profile.diseases.domains;
+  const diseaseVariantLinks = profile.diseases.variantLinks;
   const [selectedDomain, setSelectedDomain] = useState<string>('inflammatory');
   const [searchQuery, setSearchQuery] = useState('');
 
   const activeDomain = useMemo(
     () => diseaseDomains.find((d) => d.id === selectedDomain) || diseaseDomains[0],
-    [selectedDomain]
+    [diseaseDomains, selectedDomain]
   );
 
   const filteredLinks = useMemo(() => {
@@ -589,7 +592,7 @@ export default function DiseaseHubPage() {
       );
     }
     return links.length > 0 ? links : diseaseVariantLinks;
-  }, [selectedDomain, activeDomain, searchQuery]);
+  }, [diseaseVariantLinks, selectedDomain, activeDomain, searchQuery]);
 
   if (isLoading) {
     return (
@@ -609,7 +612,7 @@ export default function DiseaseHubPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

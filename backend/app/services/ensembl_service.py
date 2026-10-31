@@ -74,11 +74,19 @@ async def get_ensembl_vep(rsid: str, client: httpx.AsyncClient) -> Dict:
             if terms:
                 consequence = terms[0]
 
-        # Transcript consequences for impact
+        # Transcript consequences for impact and gene_symbol
+        gene_symbol = ""
         for tc in vep.get("transcript_consequences", []):
+            if not gene_symbol and tc.get("gene_symbol"):
+                gene_symbol = tc.get("gene_symbol", "")
             tc_impact = tc.get("impact", "MODIFIER")
             if IMPACT_RANK.get(tc_impact, 0) > IMPACT_RANK.get(impact, 0):
                 impact = tc_impact
+
+        # Motif feature consequences (TF binding sites)
+        motif_cons = vep.get("motif_feature_consequences", [])
+        if motif_cons and reg_type == "Intergenic":
+            reg_type = "TF Binding Site"
 
         most_severe = vep.get("most_severe_consequence", consequence)
         return {
@@ -86,6 +94,7 @@ async def get_ensembl_vep(rsid: str, client: httpx.AsyncClient) -> Dict:
             "consequence": most_severe,
             "impact": impact,
             "biotype": biotype,
+            "ensembl_gene": gene_symbol,
             "ensembl_found": True,
         }
     except Exception:
@@ -102,7 +111,10 @@ async def batch_annotate_ensembl(variants: List[Dict]) -> List[Dict]:
                 return {**v, **_empty_ensembl()}
             data = await get_ensembl_vep(rsid, client)
             await asyncio.sleep(0.1)
-            return {**v, **data}
+            merged = {**v, **data}
+            if (not merged.get("gene_name") or merged.get("gene_name") == "Unknown") and data.get("ensembl_gene"):
+                merged["gene_name"] = data["ensembl_gene"]
+            return merged
 
     async with httpx.AsyncClient() as client:
         results = await asyncio.gather(*[one(v, client) for v in variants])

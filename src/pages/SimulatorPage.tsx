@@ -6,6 +6,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FlaskConical, RefreshCw, TrendingDown, TrendingUp, Minus, Zap, Heart, Brain, Flame } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 const ease = [0.22, 0.61, 0.36, 1] as [number, number, number, number];
 
@@ -42,8 +43,6 @@ const INTERVENTIONS: Intervention[] = [
     effects: { inflammatoryBurden: +28, regulatoryAge: +3.2, longevityPathway: -20, mitochondrialHealth: -18, cardiovascularRisk: +24 } },
 ];
 
-const BASELINE = { inflammatoryBurden: 65, regulatoryAge: 0, longevityPathway: 50, mitochondrialHealth: 55, cardiovascularRisk: 40 };
-
 const METRICS = [
   { key: 'inflammatoryBurden',  label: 'Inflammatory Burden',       color: '#ef4444', icon: <Flame size={14} />, lowerIsBetter: true },
   { key: 'longevityPathway',    label: 'Longevity Pathway Score',    color: '#10b981', icon: <Zap size={14} />,   lowerIsBetter: false },
@@ -53,6 +52,8 @@ const METRICS = [
 
 export default function SimulatorPage() {
   const { mode } = useApp();
+  const { profile } = useRegulatoryProfile();
+  const BASELINE = profile.simulator.baseline;
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => setSelected(prev => {
@@ -73,7 +74,7 @@ export default function SimulatorPage() {
       t.cardiovascularRisk  = Math.max(0, Math.min(100, t.cardiovascularRisk  + iv.effects.cardiovascularRisk));
     }
     return t;
-  }, [activeInterventions]);
+  }, [BASELINE, activeInterventions]);
 
   const ageShift = simulated.regulatoryAge;
   const ageColor = ageShift < -0.5 ? '#10b981' : ageShift > 0.5 ? '#ef4444' : '#8899b8';

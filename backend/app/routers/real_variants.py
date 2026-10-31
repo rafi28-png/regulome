@@ -17,6 +17,7 @@ router = APIRouter(prefix="/real/variants", tags=["real-variants"])
 async def list_real_variants(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    limit: Optional[int] = Query(None, ge=1, le=200),
     search: Optional[str] = Query(None),
     significance: Optional[str] = Query(None),
     impact: Optional[str] = Query(None),
@@ -25,9 +26,18 @@ async def list_real_variants(
     user: TokenData = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    effective_per_page = limit or per_page
     gd = db.query(GenomeDataModel).filter(GenomeDataModel.user_id == user.user_id).first()
     if not gd:
-        return {"variants": [], "total": 0, "page": page, "per_page": per_page, "total_pages": 0}
+        return {
+            "variants": [],
+            "items": [],
+            "total": 0,
+            "page": page,
+            "per_page": effective_per_page,
+            "total_pages": 0,
+            "pages": 0,
+        }
 
     q = db.query(VariantModel).filter(VariantModel.genome_data_id == gd.id)
 
@@ -53,14 +63,18 @@ async def list_real_variants(
         q = q.order_by(VariantModel.impact_score.desc())
 
     total = q.count()
-    rows = q.offset((page - 1) * per_page).limit(per_page).all()
+    rows = q.offset((page - 1) * effective_per_page).limit(effective_per_page).all()
+    serialized = [_row(v) for v in rows]
+    total_pages = -(-total // effective_per_page) if effective_per_page else 1
 
     return {
-        "variants": [_row(v) for v in rows],
+        "variants": serialized,
+        "items": serialized,
         "total": total,
         "page": page,
-        "per_page": per_page,
-        "total_pages": -(-total // per_page),
+        "per_page": effective_per_page,
+        "total_pages": total_pages,
+        "pages": total_pages,
     }
 
 

@@ -39,7 +39,7 @@ import {
   ErrorState,
   Tooltip,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
   getVariantDetail,
   getVariantEvidence,
@@ -875,8 +875,11 @@ function RelatedVariantsPanel({ variants }: { variants: RelatedVariant[] }) {
 
 export default function VariantDetailPage() {
   const { variantId } = useParams<{ variantId: string }>();
-  const { isLoading, error, refetch, data: _apiData } = useApi(variantId ? `/variants/${variantId}` : null);
-  const variant = useMemo(() => getVariantDetail(variantId || ''), [variantId]);
+  const { profile, isLoading, error, refresh: refetch } = useRegulatoryProfile();
+  const variant = useMemo(() => {
+    if (!variantId) return null;
+    return profile.detailsMap[variantId] || getVariantDetail(variantId);
+  }, [variantId, profile.detailsMap]);
 
   if (isLoading) {
     return (
@@ -893,7 +896,7 @@ export default function VariantDetailPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refetch} />
       </div>
     );
   }

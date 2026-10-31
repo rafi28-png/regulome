@@ -58,15 +58,16 @@ def compute_impact_score(v: Dict) -> float:
 
     # === Population Rarity Bonus: max 10 points ===
     af = v.get("af_global", 0.0) or 0.0
-    rarity = v.get("rarity_label", "")
-    if "novel" in rarity.lower() or af == 0.0:
-        score += 10
-    elif af < 0.0001:
-        score += 8
-    elif af < 0.001:
-        score += 5
-    elif af < 0.01:
-        score += 3
+    rarity = v.get("rarity_label", "No data")
+    if rarity and rarity != "No data":
+        if "novel" in rarity.lower() or af == 0.0:
+            score += 10
+        elif af < 0.0001:
+            score += 8
+        elif af < 0.001:
+            score += 5
+        elif af < 0.01:
+            score += 3
 
     # === Disease Association Bonus: max 10 points ===
     ot_score = v.get("top_disease_score", 0.0) or 0.0

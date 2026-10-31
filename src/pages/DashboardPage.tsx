@@ -24,19 +24,10 @@ import {
 } from 'recharts';
 import { GlassCard, StatCard, Badge, EvidenceBadge, Button, StatCardSkeleton, ChartSkeleton, TableSkeleton, ErrorState } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { useApi } from '@/hooks/useApi';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiGetRealDashboard } from '@/services/api';
-import {
-  dashboardStats,
-  variantImpactData,
-  tissueImpactData,
-  diseaseRiskData,
-  ageTrendData,
-  recentActivity,
-  topVariants,
-} from '@/data/dashboardData';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 
 /* =============================================
@@ -66,6 +57,8 @@ const stagger = {
 
 // ── Variant Impact Bar Chart ──
 function VariantImpactChart() {
+  const { profile } = useRegulatoryProfile();
+  const variantImpactData = profile.dashboard.variantImpactData;
   const data = variantImpactData.map((d) => ({
     name: d.element,
     Gain: d.gain,
@@ -113,13 +106,15 @@ function VariantImpactChart() {
 
 // ── Age Trend Area Chart ──
 function AgeTrendChart() {
+  const { profile } = useRegulatoryProfile();
+  const ageTrendData = profile.dashboard.ageTrendData;
   return (
     <GlassCard padding="xl" glow="purple" hover={false} className="col-span-full lg:col-span-1">
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
           <Badge variant="warning" size="sm">
             <TrendingUp size={10} />
-            Accelerating
+            {profile.dashboard.stats.regulatoryAge.trend === 'decelerating' ? 'Decelerating' : 'Accelerating'}
           </Badge>
         </div>
         <div style={{ textAlign: 'center' }}>
@@ -156,11 +151,13 @@ function AgeTrendChart() {
 
 // ── Tissue Impact Heatmap ──
 function TissueHeatmap() {
+  const { profile } = useRegulatoryProfile();
+  const tissueImpactData = profile.dashboard.tissueImpactData;
   return (
     <GlassCard padding="xl" hover={false} className="col-span-full lg:col-span-1">
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
         <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e8edf5', marginBottom: 4 }}>Tissue Impact Map</h3>
-        <p style={{ fontSize: 13, color: '#8899b8' }}>Regulatory burden across 12 tissue types</p>
+        <p style={{ fontSize: 13, color: '#8899b8' }}>Regulatory burden across {tissueImpactData.length} tissue types</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {tissueImpactData.map((t, i) => (
@@ -202,6 +199,8 @@ function TissueHeatmap() {
 // ── Disease Risk Bars ──
 function DiseaseRiskPanel() {
   const navigate = useNavigate();
+  const { profile } = useRegulatoryProfile();
+  const diseaseRiskData = profile.dashboard.diseaseRiskData;
 
   return (
     <GlassCard padding="xl" hover={false} className="col-span-full lg:col-span-1">
@@ -230,7 +229,7 @@ function DiseaseRiskPanel() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {diseaseRiskData.map((d, i) => (
           <motion.div
-            key={d.domain}
+            key={`${d.domain}-${d.label}`}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.06 }}
@@ -261,6 +260,8 @@ function DiseaseRiskPanel() {
 // ── Top Variants Table ──
 function TopVariantsPanel() {
   const navigate = useNavigate();
+  const { profile } = useRegulatoryProfile();
+  const topVariants = profile.dashboard.topVariants;
   const effectColors = { gain: '#0ae8d2', loss: '#8b5cf6', neutral: '#6b7d9c' };
 
   return (
@@ -285,7 +286,7 @@ function TopVariantsPanel() {
         </div>
         <div style={{ textAlign: 'center' }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e8edf5', marginBottom: 4 }}>Top Priority Variants</h3>
-          <p style={{ fontSize: 13, color: '#8899b8' }}>Highest regulatory impact variants for this persona</p>
+          <p style={{ fontSize: 13, color: '#8899b8' }}>Highest regulatory impact variants for this genome profile</p>
         </div>
       </div>
 
@@ -316,6 +317,7 @@ function TopVariantsPanel() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.06 }}
+          onClick={() => navigate(`/app/variants/${v.rsId}`)}
           style={{
             display: 'grid',
             gridTemplateColumns: '140px 1fr 100px 70px 160px 70px',
@@ -358,6 +360,8 @@ function TopVariantsPanel() {
 
 // ── Activity Feed ──
 function ActivityFeed() {
+  const { profile } = useRegulatoryProfile();
+  const recentActivity = profile.dashboard.recentActivity;
   return (
     <GlassCard padding="xl" hover={false} className="col-span-full lg:col-span-1">
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
@@ -411,6 +415,7 @@ function ActivityFeed() {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { currentPersona, mode, userName, hasUploadedData } = useApp();
+  const { profile, isLoading, error, refresh: refetch } = useRegulatoryProfile();
   const [realData, setRealData] = useState<any>(null);
   const [realLoading, setRealLoading] = useState(false);
 
@@ -425,12 +430,7 @@ export default function DashboardPage() {
     }
   }, [mode, hasUploadedData]);
 
-  // Dashboard uses static seed data; the /dashboard/{id} backend endpoint isn't implemented.
-  // Only attempt the API call in demo mode (where useApi skips the network anyway).
-  const apiEndpoint = mode === 'demo' && currentPersona ? `/dashboard/${currentPersona.id}` : null;
-  const { isLoading, error, refetch, data: _apiData } = useApi(apiEndpoint);
-
-  const stats = dashboardStats;
+  const stats = profile.dashboard.stats;
 
   if (isLoading) {
     return (
@@ -452,7 +452,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refetch} />
       </div>
     );
   }

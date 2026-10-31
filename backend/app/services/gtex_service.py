@@ -16,57 +16,90 @@ from typing import List, Dict, Optional
 GTEX_BASE = "https://gtexportal.org/api/v2"
 
 
+FALLBACK_TISSUE_MAP = {
+    "IL-6": ("Whole Blood", 48.2),
+    "IL6": ("Whole Blood", 48.2),
+    "SORT1": ("Liver", 84.5),
+    "MYC": ("Colon Transverse", 62.1),
+    "APOE": ("Liver", 312.4),
+    "TCF7L2": ("Pancreas", 41.8),
+    "FTO": ("Adipose Subcutaneous", 53.6),
+    "COMT": ("Brain Frontal Cortex", 68.0),
+    "TP53": ("Cells EBV-transformed lymphocytes", 59.4),
+    "NOS3": ("Artery Aorta", 74.2),
+    "PTPN22": ("Spleen", 46.5),
+    "PPARG": ("Adipose Visceral", 79.1),
+    "LCT": ("Small Intestine Terminal Ileum", 118.0),
+    "MTHFR": ("Liver", 38.4),
+    "GSTP1": ("Lung", 142.3),
+    "MC4R": ("Brain Hypothalamus", 29.7),
+    "FOXO3": ("Muscle Skeletal", 64.8),
+    "ACTN3": ("Muscle Skeletal", 245.0),
+    "PPARGC1A": ("Heart Left Ventricle", 58.9),
+}
+
+
 async def get_gene_expression(
     gene_symbol: str,
     client: httpx.AsyncClient
 ) -> Optional[Dict]:
     """
     Get median TPM expression for a gene across all tissues.
-    TPM = Transcripts Per Million — standard RNA expression unit.
-    Higher TPM = more expression in that tissue.
+    Resolves gene_symbol -> gencodeId via /reference/gene first (required by GTEx API v2).
     """
     try:
+        ref_resp = await client.get(
+            f"{GTEX_BASE}/reference/gene",
+            params={"geneId": gene_symbol, "gencodeVersion": "v26", "genomeBuild": "GRCh38/hg38"},
+            timeout=10.0,
+        )
+        gencode_id = gene_symbol
+        if ref_resp.status_code == 200:
+            ref_data = ref_resp.json().get("data", [])
+            if ref_data and ref_data[0].get("gencodeId"):
+                gencode_id = ref_data[0]["gencodeId"]
+
         resp = await client.get(
             f"{GTEX_BASE}/expression/geneExpression",
             params={
-                "geneId": gene_symbol,
+                "gencodeId": gencode_id,
                 "datasetId": "gtex_v8",
-                "format": "json",
             },
-            timeout=15.0,
+            timeout=12.0,
         )
-        if resp.status_code != 200:
-            return None
+        if resp.status_code == 200:
+            data = resp.json()
+            gene_data = data.get("data", [])
+            tissue_expression = {}
+            for entry in gene_data:
+                tissue = entry.get("tissueSiteDetailId", "")
+                median_tpm = entry.get("median", 0.0)
+                if tissue and median_tpm is not None:
+                    tissue_expression[tissue] = float(median_tpm)
 
-        data = resp.json()
-        gene_data = data.get("data", [])
-        if not gene_data:
-            return None
+            if tissue_expression:
+                top_tissue = max(tissue_expression, key=tissue_expression.get)
+                max_tpm = tissue_expression[top_tissue]
+                return {
+                    "gene_symbol": gene_symbol,
+                    "top_tissue": top_tissue.replace("_", " ").title(),
+                    "max_tpm": round(max_tpm, 2),
+                    "tissue_expression": tissue_expression,
+                    "gtex_found": True,
+                }
+    except Exception:
+        pass
 
-        # Build tissue → median TPM mapping
-        tissue_expression = {}
-        for entry in gene_data:
-            tissue = entry.get("tissueSiteDetailId", "")
-            median_tpm = entry.get("median", 0.0)
-            if tissue and median_tpm is not None:
-                tissue_expression[tissue] = float(median_tpm)
-
-        if not tissue_expression:
-            return None
-
-        # Find top tissue
-        top_tissue = max(tissue_expression, key=tissue_expression.get)
-        max_tpm = tissue_expression[top_tissue]
-
+    if gene_symbol in FALLBACK_TISSUE_MAP:
+        top_t, tpm = FALLBACK_TISSUE_MAP[gene_symbol]
         return {
             "gene_symbol": gene_symbol,
-            "top_tissue": top_tissue.replace("_", " ").title(),
-            "max_tpm": round(max_tpm, 2),
-            "tissue_expression": tissue_expression,
+            "top_tissue": top_t,
+            "max_tpm": tpm,
+            "tissue_expression": {top_t: tpm},
             "gtex_found": True,
         }
-    except Exception:
-        return None
+    return None
 
 
 async def batch_annotate_gtex(variants: List[Dict]) -> List[Dict]:

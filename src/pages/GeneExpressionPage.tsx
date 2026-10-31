@@ -32,14 +32,9 @@ import {
   TableSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
   tissues,
-  geneSummaries,
-  tissueSummaries,
-  expressionMatrix,
-  expressionStats,
-  getGeneExpression,
   type GeneSummary,
 } from '@/data/geneExpressionData';
 
@@ -137,6 +132,8 @@ function SortButton({
 
 // ── God-Mode Hero Section ──
 function HeroSection() {
+  const { profile } = useRegulatoryProfile();
+  const expressionStats = profile.expression.stats;
   const stats = [
     { label: 'Genes Tracked', value: expressionStats.totalGenes, color: '#e8edf5', icon: <Dna size={14} /> },
     { label: 'Tissues', value: expressionStats.totalTissues, color: '#8b5cf6', icon: <Layers size={14} /> },
@@ -227,6 +224,8 @@ function ExpressionHeatmap({
   selectedGene: string | null;
   onSelectGene: (gene: string) => void;
 }) {
+  const { profile } = useRegulatoryProfile();
+  const expressionMatrix = profile.expression.expressionMatrix;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -390,8 +389,11 @@ function ExpressionHeatmap({
 
 // ── Gene Detail Panel ──
 function GeneDetailPanel({ gene }: { gene: string }) {
+  const { profile } = useRegulatoryProfile();
+  const geneSummaries = profile.expression.geneSummaries;
+  const expressionMatrix = profile.expression.expressionMatrix;
   const info = geneSummaries.find((g) => g.gene === gene);
-  const entries = getGeneExpression(gene).sort((a, b) => b.expressionLevel - a.expressionLevel);
+  const entries = expressionMatrix.filter((e) => e.gene === gene).sort((a, b) => b.expressionLevel - a.expressionLevel);
 
   if (!info) return null;
 
@@ -616,6 +618,8 @@ function TopGenesTable({
 
 // ── Tissue Overview Cards ──
 function TissueOverview() {
+  const { profile } = useRegulatoryProfile();
+  const tissueSummaries = profile.expression.tissueSummaries;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -659,9 +663,10 @@ function TissueOverview() {
    ───────────────────────────────────────────── */
 
 export default function GeneExpressionPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/expression');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const geneSummaries = profile.expression.geneSummaries;
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGene, setSelectedGene] = useState<string | null>('APOE');
+  const [selectedGene, setSelectedGene] = useState<string | null>(geneSummaries[0]?.gene || 'APOE');
   const [sortField, setSortField] = useState<SortField>('maxDeviation');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -695,7 +700,7 @@ export default function GeneExpressionPage() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return genes;
-  }, [searchQuery, sortField, sortDir]);
+  }, [geneSummaries, searchQuery, sortField, sortDir]);
 
   if (isLoading) {
     return (
@@ -715,7 +720,7 @@ export default function GeneExpressionPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

@@ -36,6 +36,8 @@ const pageTitles: Record<string, string> = {
   '/app/evidence': 'Evidence Studio',
   '/app/workbench': 'Research Workbench',
   '/app/reports': 'Report Center',
+  '/app/data-studio': 'Data Studio',
+  '/app/settings': 'Settings & Preferences',
   '/app/design-system': 'Design System',
 };
 

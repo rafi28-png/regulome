@@ -22,12 +22,10 @@ import {
   TableSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
-  evidenceRecords,
   evidenceSources,
   evidenceFilterOptions,
-  evidenceStats,
   type EvidenceRecord,
 } from '@/data/evidenceData';
 import type { EvidenceLevel, RegulatoryElementType } from '@/types';
@@ -70,12 +68,14 @@ function HeroSection({ showFilters, setShowFilters, activeFilterCount }: {
   showFilters: boolean; setShowFilters: (v: boolean) => void;
   activeFilterCount: number;
 }) {
+  const { profile } = useRegulatoryProfile();
+  const recs = profile.evidence.records;
   const stats = [
-    { label: 'Total Records', value: evidenceStats.totalRecords.toLocaleString(), color: '#e8edf5' },
-    { label: 'Validated', value: evidenceStats.validated, color: levelColors.validated },
-    { label: 'Literature', value: evidenceStats.literature, color: levelColors.literature },
-    { label: 'Predicted', value: evidenceStats.predicted, color: levelColors.predicted },
-    { label: 'Inferred', value: evidenceStats.inferred, color: levelColors.inferred },
+    { label: 'Total Records', value: recs.length.toLocaleString(), color: '#e8edf5' },
+    { label: 'Validated', value: recs.filter((r) => r.evidenceLevel === 'validated').length, color: levelColors.validated },
+    { label: 'Literature', value: recs.filter((r) => r.evidenceLevel === 'literature').length, color: levelColors.literature },
+    { label: 'Predicted', value: recs.filter((r) => r.evidenceLevel === 'predicted').length, color: levelColors.predicted },
+    { label: 'Inferred', value: recs.filter((r) => r.evidenceLevel === 'inferred').length, color: levelColors.inferred },
   ];
 
   return (
@@ -366,7 +366,8 @@ function EvidenceCard({ record, index }: { record: EvidenceRecord; index: number
 
 // ── Main Evidence Studio Page ──
 export default function EvidenceStudioPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/evidence');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const evidenceRecords = profile.evidence.records;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<'All' | EvidenceLevel>('All');
@@ -415,7 +416,7 @@ export default function EvidenceStudioPage() {
     });
 
     return records;
-  }, [searchQuery, selectedLevel, selectedTissue, selectedElement, selectedEffect, sortBy]);
+  }, [evidenceRecords, searchQuery, selectedLevel, selectedTissue, selectedElement, selectedEffect, sortBy]);
 
   const activeFilterCount = [selectedLevel, selectedTissue, selectedElement, selectedEffect].filter(
     (f) => f !== 'All'
@@ -432,7 +433,7 @@ export default function EvidenceStudioPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

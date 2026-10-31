@@ -13,13 +13,8 @@ import {
   ContentCardSkeleton, ChartSkeleton, StatCardSkeleton,
   ErrorState
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
-  chromosomes,
-  tadRegions,
-  regulatoryAnnotations,
-  locusDetails,
-  genomeExplorerStats,
   elementTypeConfig,
   type ChromosomeInfo,
   type TADRegion,
@@ -63,6 +58,8 @@ const compartmentColors = {
 
 // ── God-Mode Hero Section ──
 function HeroSection() {
+  const { profile } = useRegulatoryProfile();
+  const genomeExplorerStats = profile.genome3d.stats;
   const stats = [
     { label: 'Chromosomes', value: genomeExplorerStats.chromosomes, color: '#3b82f6' },
     { label: 'TAD Domains', value: genomeExplorerStats.totalTADs, color: '#0ae8d2' },
@@ -153,6 +150,8 @@ function ChromosomeSelector({
   selected: string;
   onSelect: (id: string) => void;
 }) {
+  const { profile } = useRegulatoryProfile();
+  const chromosomes = profile.genome3d.chromosomes;
   return (
     <GlassCard padding="lg" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -531,7 +530,8 @@ function ChromosomeInfoCard({ chromosome }: { chromosome: ChromosomeInfo }) {
    ────────────────────────────────────────────── */
 
 export default function GenomeExplorerPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/genome');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const { chromosomes, tadRegions, regulatoryAnnotations, locusDetails } = profile.genome3d;
   const [selectedChromosome, setSelectedChromosome] = useState('chr1');
   const [activeTadId, setActiveTadId] = useState<string | null>(null);
   const [hoveredTadId, setHoveredTadId] = useState<string | null>(null);
@@ -540,29 +540,29 @@ export default function GenomeExplorerPage() {
   const [nucleusHover, setNucleusHover] = useState<NuclearHoverInfo>(null);
 
   const currentChromosome = useMemo(
-    () => chromosomes.find((c) => c.id === selectedChromosome)!,
-    [selectedChromosome]
+    () => chromosomes.find((c) => c.id === selectedChromosome) || chromosomes[0],
+    [chromosomes, selectedChromosome]
   );
 
   const currentTads = useMemo(
     () => tadRegions.filter((t) => t.chromosomeId === selectedChromosome),
-    [selectedChromosome]
+    [tadRegions, selectedChromosome]
   );
 
   const currentAnnotations = useMemo(
     () => regulatoryAnnotations.filter((a) => a.chromosomeId === selectedChromosome),
-    [selectedChromosome]
+    [regulatoryAnnotations, selectedChromosome]
   );
 
   const activeLocus = useMemo(() => {
     if (!activeTadId) return null;
     return locusDetails.find((l) => l.tadId === activeTadId) || null;
-  }, [activeTadId]);
+  }, [locusDetails, activeTadId]);
 
   const activeTad = useMemo(() => {
     if (!activeTadId) return null;
     return tadRegions.find((t) => t.id === activeTadId) || null;
-  }, [activeTadId]);
+  }, [tadRegions, activeTadId]);
 
   const handleSelectChromosome = useCallback((id: string) => {
     setSelectedChromosome(id);
@@ -592,7 +592,7 @@ export default function GenomeExplorerPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

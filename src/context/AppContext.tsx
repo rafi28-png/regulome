@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import type { AppMode, DemoPersona } from '@/types';
 import { AUTH_TOKEN_STORAGE_KEY, MODE_STORAGE_KEY, PERSONA_STORAGE_KEY, readStorageItem, writeStorageItem } from '@/lib/storage';
+import { clearUploadedGenomicVariants } from '@/hooks/useRegulatoryProfile';
 
 /** Separate key to persist the last-used demo persona even while in real mode. */
 const LAST_DEMO_PERSONA_KEY = 'regulome:last-demo-persona';
@@ -148,6 +149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearUploadedData = useCallback(() => {
     setHasUploadedDataState(false);
     writeStorageItem('regulome:has-uploaded-data', 'false');
+    clearUploadedGenomicVariants();
   }, []);
 
   const setMode = useCallback((nextMode: AppMode) => {
@@ -191,9 +193,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserEmailState(null);
     writeStorageItem(USER_NAME_KEY, null);
     writeStorageItem(USER_EMAIL_KEY, null);
-    // Clear upload data flag
+    // Clear upload data flag & uploaded genomic variants
     setHasUploadedDataState(false);
     writeStorageItem('regulome:has-uploaded-data', 'false');
+    clearUploadedGenomicVariants();
     // Return to demo mode
     setModeState('demo');
     writeStoredMode('demo');

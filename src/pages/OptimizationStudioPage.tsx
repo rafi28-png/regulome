@@ -40,13 +40,8 @@ import {
   Tooltip as RechartsTooltip,
 } from 'recharts';
 import { GlassCard, Badge, StatCardSkeleton, ChartSkeleton, TableSkeleton, ErrorState } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
-  protocols,
-  interventions,
-  pathwayStatuses,
-  weeklyAdherence,
-  optimizationStats,
   type Protocol,
   type Intervention,
   type PathwayStatus,
@@ -129,6 +124,8 @@ function ScoreRing({ score }: { score: number }) {
 
 // ── Adherence bar chart ──────────────────────────
 function AdherenceChart() {
+  const { profile } = useRegulatoryProfile();
+  const weeklyAdherence = profile.optimization.weeklyAdherence;
   const data = weeklyAdherence.map(d => ({
     day: d.day,
     Sleep: d.sleep,
@@ -183,6 +180,8 @@ const CustomDot = (props: { cx?: number; cy?: number; payload?: { score: number 
 };
 
 function PathwayRadar() {
+  const { profile } = useRegulatoryProfile();
+  const pathwayStatuses = profile.optimization.pathwayStatuses;
   const data = pathwayStatuses.map(p => ({
     pathway: p.name.split(' / ')[0],
     score: p.score,
@@ -614,18 +613,18 @@ function PathwayPanel({ item, index }: { item: PathwayStatus; index: number }) {
 type TabId = 'protocols' | 'recommendations' | 'pathways';
 
 export default function OptimizationStudioPage() {
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const { protocols, interventions, pathwayStatuses, stats: s } = profile.optimization;
   // ─ recommendations state lifted here so tab count is reactive ─
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
   const activeRecommendationCount = interventions.length - dismissedIds.size - acceptedIds.size;
 
-  const { isLoading, error, refetch } = useApi('/optimization');
   const [activeTab, setActiveTab] = useState<TabId>('protocols');
   const [showAddModal, setShowAddModal] = useState(false);
   const [protocolName, setProtocolName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('sleep');
   const [savedMsg, setSavedMsg] = useState(false);
-  const s = optimizationStats;
 
   const openAdd = (name = '', category = 'sleep') => {
     setProtocolName(name);
@@ -665,7 +664,7 @@ export default function OptimizationStudioPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

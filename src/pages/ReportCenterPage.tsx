@@ -6,8 +6,10 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Download, Loader2, CheckCircle, Database, Dna, HeartPulse, Activity, Sparkles } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { variantExplorerData } from '@/data/variantData';
-import { diseaseDomains } from '@/data/diseaseHubData';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
+import type { VariantExplorerEntry } from '@/data/variantData';
+import type { DiseaseDomain } from '@/data/diseaseHubData';
+import type { GeneSummary } from '@/data/geneExpressionData';
 
 const ease = [0.22, 0.61, 0.36, 1] as [number, number, number, number];
 
@@ -18,27 +20,49 @@ const REPORTS = [
   { id: 'expression_report', title: 'Expression Landscape',   desc: 'Gene × tissue expression deviations and hotspot gene analysis across regulatory networks.',           icon: <Activity size={22} />,  color: '#f59e0b',  sections: ['Expression Matrix','Hotspots','Tissue Stats'],  badge: 'EXPRESSION' },
 ] as const;
 
-function generate(type: string, persona: string | undefined, mode: string): object {
+function generate(
+  type: string,
+  persona: string | undefined,
+  mode: string,
+  variantExplorerData: VariantExplorerEntry[],
+  diseaseDomains: DiseaseDomain[],
+  geneSummaries: GeneSummary[]
+): object {
   const base = {
     report_type: type, generated_at: new Date().toISOString(),
     mode, persona: persona ?? 'general', platform: 'ReguloMe v0.1.0',
     data_sources: mode === 'real'
-      ? ['Ensembl REST API','NCBI ClinVar','GTEx v10','Open Targets Platform']
-      : ['ReguloMe Demo Dataset'],
+      ? ['MyVariant.info (NCBI ClinVar/dbSNP/CADD/gnomAD)','Ensembl VEP REST API','GTEx v10','JASPAR PWM Motif Engine']
+      : ['ReguloMe Dynamic Persona Regulatory Graph'],
   };
   if (type === 'variant_report' || type === 'full_analysis') {
     return { ...base, variants: {
       total: variantExplorerData.length,
-      top_20: variantExplorerData.sort((a,b)=>b.priorityScore-a.priorityScore).slice(0,20)
+      top_20: [...variantExplorerData].sort((a,b)=>b.priorityScore-a.priorityScore).slice(0,20)
         .map(v=>({ rs_id:v.rsId, gene:v.gene, chromosome:v.chromosome, position:v.position,
           element_type:v.elementType, effect:v.effect, evidence_level:v.evidenceLevel,
           priority_score:v.priorityScore, tissues:v.tissues, affected_tfs:v.affectedTFs })),
-    }};
+    }, ...(type === 'full_analysis' ? {
+      disease_domains: diseaseDomains.map(d=>({
+        domain:d.id, label:d.name, risk_level:d.riskLevel,
+        regulatory_burden:d.burdenScore, variant_count:d.variantCount, top_gene:d.topGene,
+      })),
+      expression_summary: geneSummaries.map(g=>({
+        gene: g.gene, chromosome: g.chromosome, avg_expression: g.avgExpression,
+        max_deviation: g.maxDeviation, top_tissue: g.topTissue, hotspots: g.hotspotCount,
+      })),
+    } : {})};
   }
   if (type === 'disease_report') {
     return { ...base, disease_domains: diseaseDomains.map(d=>({
       domain:d.id, label:d.name, risk_level:d.riskLevel,
       regulatory_burden:d.burdenScore, variant_count:d.variantCount, top_gene:d.topGene,
+    }))};
+  }
+  if (type === 'expression_report') {
+    return { ...base, expression_summary: geneSummaries.map(g=>({
+      gene: g.gene, chromosome: g.chromosome, avg_expression: g.avgExpression,
+      max_deviation: g.maxDeviation, top_tissue: g.topTissue, hotspots: g.hotspotCount,
     }))};
   }
   return { ...base, summary: 'Report generated from ReguloMe regulatory genomics analysis.' };
@@ -70,13 +94,17 @@ function download(data: object, filename: string, fmt: 'json' | 'txt') {
 
 export default function ReportCenterPage() {
   const { mode, currentPersona } = useApp();
+  const { profile } = useRegulatoryProfile();
+  const variantExplorerData = profile.variants;
+  const diseaseDomains = profile.diseases.domains;
+  const geneSummaries = profile.expression.geneSummaries;
   const [generating, setGenerating] = useState<string|null>(null);
   const [done, setDone] = useState<string|null>(null);
 
   const handle = async (id: string, fmt: 'json' | 'txt') => {
     setGenerating(`${id}_${fmt}`);
     await new Promise(r => setTimeout(r, 800));
-    const data = generate(id, currentPersona?.id, mode);
+    const data = generate(id, currentPersona?.id, mode, variantExplorerData, diseaseDomains, geneSummaries);
     const ts = new Date().toISOString().slice(0,16).replace(/[:.T]/g, '-');
     download(data, `regulome_${id}_${ts}.${fmt}`, fmt);
     setGenerating(null); setDone(id);

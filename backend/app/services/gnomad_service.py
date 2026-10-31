@@ -25,7 +25,7 @@ GNOMAD_API = "https://gnomad.broadinstitute.org/api"
 
 GNOMAD_QUERY = """
 query VariantFrequency($variantId: String!) {
-  variant(variantId: $variantId, dataset: gnomad_r4_genomes) {
+  variant(variantId: $variantId, dataset: gnomad_r4) {
     variantId
     exome {
       ac
@@ -93,7 +93,7 @@ async def get_gnomad_frequency(
     alt: str,
     client: httpx.AsyncClient,
 ) -> Dict:
-    if not chromosome or not position or not ref or not alt:
+    if not chromosome or not position or not ref or not alt or ref == alt:
         return _empty_gnomad()
 
     variant_id = _rsid_to_variant_id("", chromosome, position, ref, alt)

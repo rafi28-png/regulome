@@ -6,11 +6,10 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Dna, Activity, Layers, ChevronRight, TrendingUp, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { variantExplorerData } from '@/data/variantData';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 const ease = [0.22, 0.61, 0.36, 1] as [number,number,number,number];
 
-// ── derived data ────────────────────────────────────────────────────────────
 // All human chromosomes — empty ones show as greyed-out (no data)
 const CHR_ORDER = [
   'chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10',
@@ -18,30 +17,10 @@ const CHR_ORDER = [
   'chr20','chr21','chr22','chrX',
 ];
 
-const chrData = CHR_ORDER.map(chr => {
-  const vs = variantExplorerData.filter(v => v.chromosome === chr);
-  const avgScore = vs.length ? Math.round(vs.reduce((s,v)=>s+v.priorityScore,0)/vs.length) : 0;
-  return { chr, count: vs.length, avgScore, variants: vs };
-});
-
 const ALL_TISSUES = ['Immune','Liver','Heart','Brain','Adipose','Intestine','Pancreas','Lung','Bone Marrow','Multiple'];
-
-const tissueMatrix = ALL_TISSUES.map(tissue => {
-  const vs = variantExplorerData.filter(v => v.tissues.includes(tissue));
-  const gain = vs.filter(v=>v.effect==='gain').length;
-  const loss = vs.filter(v=>v.effect==='loss').length;
-  return { tissue, count: vs.length, gain, loss, avgScore: vs.length ? Math.round(vs.reduce((s,v)=>s+v.priorityScore,0)/vs.length) : 0 };
-}).sort((a,b)=>b.count-a.count);
-
-const geneHotspots = Object.entries(
-  variantExplorerData.reduce((acc,v) => { acc[v.gene]=(acc[v.gene]||[]); acc[v.gene].push(v); return acc; }, {} as Record<string,typeof variantExplorerData>)
-).map(([gene,vs]) => ({ gene, count: vs.length, maxScore: Math.max(...vs.map(v=>v.priorityScore)), publications: vs.reduce((s,v)=>s+v.publicationCount,0), diseases: [...new Set(vs.flatMap(v=>v.linkedDiseases))] }))
- .sort((a,b)=>b.maxScore-a.maxScore).slice(0,8);
 
 const EFFECT_COLOR = { gain:'#10b981', loss:'#ef4444', neutral:'#6b7d9c' } as const;
 const EVIDENCE_COLOR: Record<string,string> = { validated:'#0ae8d2', literature:'#8b5cf6', predicted:'#f59e0b', inferred:'#6b7d9c' };
-
-const maxChrCount = Math.max(...chrData.map(c=>c.count), 1);
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const Chip = ({ label, color }: { label:string; color:string }) => (
@@ -51,20 +30,37 @@ const Chip = ({ label, color }: { label:string; color:string }) => (
 
 export default function HotspotAtlasPage() {
   const navigate = useNavigate();
+  const { profile } = useRegulatoryProfile();
+  const variantExplorerData = profile.variants;
   const [selectedChr, setSelectedChr] = useState<string|null>(null);
   const [view, setView] = useState<'genome'|'tissue'|'genes'>('genome');
 
+  const chrData = useMemo(() => CHR_ORDER.map(chr => {
+    const vs = variantExplorerData.filter(v => v.chromosome === chr);
+    const avgScore = vs.length ? Math.round(vs.reduce((s,v)=>s+v.priorityScore,0)/vs.length) : 0;
+    return { chr, count: vs.length, avgScore, variants: vs };
+  }), [variantExplorerData]);
+
+  const maxChrCount = useMemo(() => Math.max(...chrData.map(c=>c.count), 1), [chrData]);
+
+  const tissueMatrix = useMemo(() => ALL_TISSUES.map(tissue => {
+    const vs = variantExplorerData.filter(v => v.tissues.includes(tissue));
+    const gain = vs.filter(v=>v.effect==='gain').length;
+    const loss = vs.filter(v=>v.effect==='loss').length;
+    return { tissue, count: vs.length, gain, loss, avgScore: vs.length ? Math.round(vs.reduce((s,v)=>s+v.priorityScore,0)/vs.length) : 0 };
+  }).sort((a,b)=>b.count-a.count), [variantExplorerData]);
+
+  const geneHotspots = useMemo(() => Object.entries(
+    variantExplorerData.reduce((acc,v) => { acc[v.gene]=(acc[v.gene]||[]); acc[v.gene].push(v); return acc; }, {} as Record<string,typeof variantExplorerData>)
+  ).map(([gene,vs]) => ({ gene, count: vs.length, maxScore: Math.max(...vs.map(v=>v.priorityScore)), publications: vs.reduce((s,v)=>s+v.publicationCount,0), diseases: [...new Set(vs.flatMap(v=>v.linkedDiseases))] }))
+   .sort((a,b)=>b.maxScore-a.maxScore).slice(0,8), [variantExplorerData]);
+
   const goToVariant  = (id: string) => navigate(`/app/variants/${id}`);
   const goToGene     = (gene: string) => navigate(`/app/workbench?q=${encodeURIComponent(gene)}`);
-  const goToVariantR = (rsId: string) => {
-    const v = variantExplorerData.find(x => x.rsId === rsId);
-    if (v) navigate(`/app/variants/${v.id}`);
-    else navigate(`/app/workbench?q=${encodeURIComponent(rsId)}`);
-  };
 
   const focusVariants = useMemo(() =>
     selectedChr ? variantExplorerData.filter(v=>v.chromosome===selectedChr).sort((a,b)=>b.priorityScore-a.priorityScore) : [],
-  [selectedChr]);
+  [variantExplorerData, selectedChr]);
 
   return (
     <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:0.5,ease}}

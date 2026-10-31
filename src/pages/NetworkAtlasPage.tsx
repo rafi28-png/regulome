@@ -19,11 +19,8 @@ import {
   StatCardSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import {
-  networkNodes,
-  networkEdges,
-  networkStats,
   nodeColors,
   nodeIcons,
   nodeTypeLabels,
@@ -416,7 +413,7 @@ function ForceGraph({
       <AnimatePresence>
         {hoveredNode && (() => {
           const nodeId = hoveredNode.node.id;
-          const connections = networkEdges.filter(
+          const connections = edges.filter(
             (e) => e.source === nodeId || e.target === nodeId
           );
           const edgeTypeSet = new Set(connections.map((e) => e.type));
@@ -534,6 +531,9 @@ function ForceGraph({
 
 /* ── Node Detail Panel ── */
 function NodeDetailPanel({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+  const { profile } = useRegulatoryProfile();
+  const networkNodes = profile.network.nodes;
+  const networkEdges = profile.network.edges;
   const node = networkNodes.find((n) => n.id === nodeId);
   if (!node) return null;
 
@@ -613,6 +613,8 @@ function NodeDetailPanel({ nodeId, onClose }: { nodeId: string; onClose: () => v
 
 /* ── God-Mode Hero Section ── */
 function HeroSection() {
+  const { profile } = useRegulatoryProfile();
+  const networkStats = profile.network.stats;
   const stats = [
     { label: 'Nodes', value: networkStats.totalNodes, color: '#e8edf5', icon: <Network size={14} /> },
     { label: 'Edges', value: networkStats.totalEdges, color: '#0ae8d2', icon: <Filter size={14} /> },
@@ -701,6 +703,8 @@ function NetworkLegend({
   visibleTypes: Set<NodeType>;
   onToggleType: (type: NodeType) => void;
 }) {
+  const { profile } = useRegulatoryProfile();
+  const networkNodes = profile.network.nodes;
   const types: NodeType[] = ['variant', 'tf', 'gene', 'pathway', 'disease', 'tissue'];
 
   return (
@@ -763,7 +767,9 @@ function NetworkLegend({
    ───────────────────────────────────────────── */
 
 export default function NetworkAtlasPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/network');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const networkNodes = profile.network.nodes;
+  const networkEdges = profile.network.edges;
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleTypes, setVisibleTypes] = useState<Set<NodeType>>(
@@ -799,12 +805,12 @@ export default function NetworkAtlasPage() {
       if (matchedIds.has(e.target)) matchedIds.add(e.source);
     });
     return networkNodes.filter((n) => matchedIds.has(n.id));
-  }, [searchQuery]);
+  }, [networkNodes, networkEdges, searchQuery]);
 
   const displayEdges = useMemo(() => {
     const nodeIds = new Set(displayNodes.map((n) => n.id));
     return networkEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-  }, [displayNodes]);
+  }, [networkEdges, displayNodes]);
 
   if (isLoading) {
     return (
@@ -820,7 +826,7 @@ export default function NetworkAtlasPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

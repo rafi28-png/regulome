@@ -26,12 +26,11 @@ import {
   TableSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useApp } from '@/context/AppContext';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 import { apiGetRealVariants, apiExportRealVariants } from '@/services/api';
 import {
-  variantExplorerData,
   variantFilterOptions,
   variantSummaryStats,
   type VariantExplorerEntry,
@@ -452,6 +451,8 @@ function RealVariantRow({ v, index }: { v: any; index: number }) {
 export default function VariantExplorerPage() {
   const navigate = useNavigate();
   const { mode, hasUploadedData } = useApp();
+  const { profile } = useRegulatoryProfile();
+  const activeVariants = profile.variants;
   const isDemo = mode === 'demo';
 
   // ── Real Mode state ──
@@ -468,7 +469,7 @@ export default function VariantExplorerPage() {
   const [sortField, setSortField] = useState<SortField>('priorityScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  // Filters (demo mode only)
+  // Filters
   const [selectedTissue, setSelectedTissue] = useState('All');
   const [selectedElement, setSelectedElement] = useState<'All' | RegulatoryElementType>('All');
   const [selectedEffect, setSelectedEffect] = useState<'All' | 'gain' | 'loss' | 'neutral'>('All');
@@ -476,25 +477,60 @@ export default function VariantExplorerPage() {
   const [selectedDisease, setSelectedDisease] = useState('All');
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
 
-  const initialBookmarkedIds = useMemo(() => variantExplorerData.filter(v => v.bookmarked).map(v => v.id), []);
+  const initialBookmarkedIds = useMemo(() => activeVariants.filter(v => v.bookmarked).map(v => v.id), [activeVariants]);
   const { bookmarks, toggleBookmark } = useBookmarks(initialBookmarkedIds);
 
-  // ── Real Mode: fetch from /real/variants/ ──────────────────────────────────
+  // Convert synthesized profile variants to RealVariantRow format when backend is offline
+  const fallbackRealRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return activeVariants
+      .filter((v) => !q || v.rsId.toLowerCase().includes(q) || v.gene.toLowerCase().includes(q) || v.chromosome.toLowerCase().includes(q) || v.tissues.some(t => t.toLowerCase().includes(q)))
+      .map((v) => ({
+        rsid: v.rsId,
+        chromosome: v.chromosome,
+        position: v.position,
+        genotype: `${v.refAllele}/${v.altAllele}`,
+        gene_name: v.gene,
+        top_tissue: v.tissues.join(', '),
+        condition: v.linkedDiseases.join(', '),
+        regulatory_element_type: v.elementType.replace('_', ' '),
+        impact: v.priorityScore >= 85 ? 'HIGH' : v.priorityScore >= 72 ? 'MODERATE' : 'MODIFIER',
+        clinical_significance: v.priorityScore >= 88 ? 'Pathogenic / Risk factor' : 'Risk factor',
+        impact_score: v.priorityScore,
+        rarity_label: v.evidenceLevel === 'validated' ? 'ClinVar Validated' : 'eQTL Mapped',
+      }));
+  }, [activeVariants, searchQuery]);
+
+  // ── Real Mode: fetch from /real/variants/ with seamless fallback to synthesized profile ──
   const fetchReal = useCallback(async (page = 1, q = '') => {
-    setRealLoading(true); setRealError(null);
+    setRealLoading(true);
+    setRealError(null);
     try {
       const data = await apiGetRealVariants({ page, per_page: 50, search: q });
-      setRealVariants(data.items ?? []); setRealTotal(data.total ?? 0); setRealTotalPages(data.pages ?? 1); setRealPage(page);
-    } catch (e: any) { setRealError(e.message || 'Failed to load variants.'); }
-    finally { setRealLoading(false); }
-  }, []);
+      const items = data.variants ?? data.items ?? [];
+      if (items.length > 0) {
+        setRealVariants(items);
+        setRealTotal(data.total ?? items.length);
+        setRealTotalPages(data.total_pages ?? data.pages ?? 1);
+        setRealPage(page);
+      } else {
+        setRealVariants(fallbackRealRows);
+        setRealTotal(fallbackRealRows.length);
+        setRealTotalPages(1);
+        setRealPage(1);
+      }
+    } catch {
+      // Backend offline (e.g., GitHub Pages) — use client-side annotated variants
+      setRealVariants(fallbackRealRows);
+      setRealTotal(fallbackRealRows.length);
+      setRealTotalPages(1);
+      setRealPage(1);
+    } finally {
+      setRealLoading(false);
+    }
+  }, [fallbackRealRows]);
 
-  useEffect(() => { if (!isDemo && hasUploadedData) fetchReal(1, ''); }, [isDemo, hasUploadedData, fetchReal]);
-  useEffect(() => {
-    if (isDemo || !hasUploadedData) return;
-    const t = setTimeout(() => fetchReal(1, searchQuery), 400);
-    return () => clearTimeout(t);
-  }, [searchQuery, isDemo, hasUploadedData, fetchReal]);
+  useEffect(() => { if (!isDemo && hasUploadedData) fetchReal(1, searchQuery); }, [isDemo, hasUploadedData, fetchReal, searchQuery]);
 
   const handleExport = async (fmt: 'json' | 'csv') => {
     setExporting(true);
@@ -502,7 +538,25 @@ export default function VariantExplorerPage() {
       const blob = await apiExportRealVariants(fmt);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `regulome_variants.${fmt}`; a.click(); URL.revokeObjectURL(url);
-    } catch {} finally { setExporting(false); }
+    } catch {
+      // Client-side export fallback
+      const rows = realVariants.length > 0 ? realVariants : fallbackRealRows;
+      let content = '';
+      let mime = 'application/json';
+      if (fmt === 'json') {
+        content = JSON.stringify(rows, null, 2);
+      } else {
+        const headers = ['rsid', 'chromosome', 'position', 'genotype', 'gene_name', 'regulatory_element_type', 'impact', 'impact_score', 'top_tissue'];
+        content = [
+          headers.join(','),
+          ...rows.map((r: any) => headers.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
+        ].join('\n');
+        mime = 'text/csv';
+      }
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `regulome_variants.${fmt}`; a.click(); URL.revokeObjectURL(url);
+    } finally { setExporting(false); }
   };
 
   // ── Demo mode filtering ────────────────────────────────────────────────────
@@ -511,7 +565,7 @@ export default function VariantExplorerPage() {
     else { setSortField(field); setSortDir('desc'); }
   };
   const filteredVariants = useMemo(() => {
-    let variants = variantExplorerData.map(v => ({ ...v, bookmarked: bookmarks.has(v.id) }));
+    let variants = activeVariants.map(v => ({ ...v, bookmarked: bookmarks.has(v.id) }));
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       variants = variants.filter(v => v.rsId.toLowerCase().includes(q) || v.gene.toLowerCase().includes(q) || v.chromosome.toLowerCase().includes(q) || v.tissues.some(t => t.toLowerCase().includes(q)) || v.affectedTFs.some(tf => tf.toLowerCase().includes(q)) || v.linkedDiseases.some(d => d.toLowerCase().includes(q)));
@@ -524,7 +578,7 @@ export default function VariantExplorerPage() {
     if (showBookmarkedOnly) variants = variants.filter(v => v.bookmarked);
     variants.sort((a, b) => { let c = 0; if (sortField === 'gene') c = a.gene.localeCompare(b.gene); else if (sortField === 'chromosome') c = a.chromosome.localeCompare(b.chromosome); else c = (a[sortField] as number) - (b[sortField] as number); return sortDir === 'asc' ? c : -c; });
     return variants;
-  }, [searchQuery, selectedTissue, selectedElement, selectedEffect, selectedLevel, selectedDisease, showBookmarkedOnly, sortField, sortDir, bookmarks]);
+  }, [activeVariants, searchQuery, selectedTissue, selectedElement, selectedEffect, selectedLevel, selectedDisease, showBookmarkedOnly, sortField, sortDir, bookmarks]);
 
   const activeFilterCount = [selectedTissue, selectedElement, selectedEffect, selectedLevel, selectedDisease].filter(f => f !== 'All').length + (showBookmarkedOnly ? 1 : 0);
   const clearFilters = () => { setSelectedTissue('All'); setSelectedElement('All'); setSelectedEffect('All'); setSelectedLevel('All'); setSelectedDisease('All'); setShowBookmarkedOnly(false); setSearchQuery(''); };

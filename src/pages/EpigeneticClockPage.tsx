@@ -15,11 +15,7 @@ import {
   ContentCardSkeleton, ChartSkeleton, StatCardSkeleton, TableSkeleton,
   ErrorState
 } from '@/components/ui';
-import { useApi } from '@/hooks/useApi';
-import {
-  subjectProfile, ageTrendData, clockModels,
-  organAges, interventionTargets, clockStats,
-} from '@/data/epigeneticClockData';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 /* =============================================
    ReguloMe — Epigenetic Clock  (GOD-MODE)
@@ -36,7 +32,8 @@ const stagger = {
 
 /* ─── Large Biological Age Gauge ─── */
 function AgeGauge() {
-  const { chronologicalAge, biologicalAge, ageDelta, percentile } = subjectProfile;
+  const { profile } = useRegulatoryProfile();
+  const { chronologicalAge, biologicalAge, ageDelta, percentile } = profile.clock.subjectProfile;
   const size = 220;
   const sw = 10;
   const r = (size - sw * 2) / 2;
@@ -163,6 +160,8 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 function AgeTrendChart() {
+  const { profile } = useRegulatoryProfile();
+  const ageTrendData = profile.clock.ageTrendData;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
@@ -216,6 +215,8 @@ function AgeTrendChart() {
 
 /* ─── Clock Models Panel ─── */
 function ClockModelsPanel() {
+  const { profile } = useRegulatoryProfile();
+  const clockModels = profile.clock.clockModels;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
@@ -276,6 +277,8 @@ function ClockModelsPanel() {
 
 /* ─── Organ Age Cards ─── */
 function OrganAgeGrid() {
+  const { profile } = useRegulatoryProfile();
+  const organAges = profile.clock.organAges;
   return (
     <motion.div variants={stagger.item}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
@@ -334,6 +337,8 @@ function OrganAgeGrid() {
 
 /* ─── Intervention Targets ─── */
 function InterventionsPanel() {
+  const { profile } = useRegulatoryProfile();
+  const interventionTargets = profile.clock.interventionTargets;
   return (
     <GlassCard padding="xl" hover={false} animate={false}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
@@ -414,7 +419,8 @@ function InterventionsPanel() {
    MAIN PAGE
    ────────────────────────────────────────────── */
 export default function EpigeneticClockPage() {
-  const { isLoading, error, refetch, data: _apiData } = useApi('/clock');
+  const { profile, isLoading, error, refresh } = useRegulatoryProfile();
+  const clockStats = profile.clock.stats;
 
   if (isLoading) {
     return (
@@ -434,7 +440,7 @@ export default function EpigeneticClockPage() {
   if (error) {
     return (
       <div style={{ padding: '40px 0' }}>
-        <ErrorState message={error.message} onRetry={refetch} />
+        <ErrorState message={error} onRetry={refresh} />
       </div>
     );
   }

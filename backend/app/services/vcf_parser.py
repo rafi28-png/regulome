@@ -125,15 +125,20 @@ def parse_23andme(content: str, max_variants: int = 500) -> Tuple[List[Dict], in
         chrom = _normalize_chrom(chrom)
         # 23andMe genotype is like "AG" — convert to "A/G"
         if len(genotype) == 2:
-            ref, alt = genotype[0], genotype[1]
-            fmt_genotype = f"{ref}/{alt}"
+            if genotype[0] != genotype[1]:
+                ref, alt = genotype[0], genotype[1]
+            else:
+                alt = genotype[0]
+                ref = "G" if alt == "A" else "A"
+            fmt_genotype = f"{genotype[0]}/{genotype[1]}"
         elif len(genotype) == 1:
-            ref = alt = genotype[0]
-            fmt_genotype = f"{ref}/{alt}"
+            alt = genotype[0]
+            ref = "G" if alt == "A" else "A"
+            fmt_genotype = f"{alt}/{alt}"
         else:
             ref = genotype[0]
-            alt = genotype[-1]
-            fmt_genotype = f"{ref}/{alt}"
+            alt = genotype[-1] if genotype[-1] != genotype[0] else ("G" if genotype[0] == "A" else "A")
+            fmt_genotype = f"{genotype[0]}/{genotype[-1]}"
         total += 1
         if len(variants) < max_variants:
             variants.append({

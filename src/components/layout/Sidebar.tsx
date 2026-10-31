@@ -14,6 +14,8 @@ import {
   BookOpen,
   Wrench,
   FileText,
+  Upload,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Sparkles,
@@ -37,6 +39,8 @@ const iconMap: Record<string, React.ReactNode> = {
   BookOpen: <BookOpen size={18} />,
   Wrench: <Wrench size={18} />,
   FileText: <FileText size={18} />,
+  Upload: <Upload size={18} />,
+  Settings: <Settings size={18} />,
 };
 
 interface NavItem {
@@ -48,6 +52,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/app/dashboard', label: 'Dashboard', icon: 'LayoutDashboard', section: 'Core' },
+  { path: '/app/data-studio', label: 'Data Studio', icon: 'Upload', section: 'Core' },
   { path: '/app/variants', label: 'Variant Explorer', icon: 'Dna', section: 'Core' },
   { path: '/app/expression', label: 'Gene Expression', icon: 'Activity', section: 'Core' },
   { path: '/app/network', label: 'Network Atlas', icon: 'Network', section: 'Visualization' },
@@ -60,6 +65,7 @@ const navItems: NavItem[] = [
   { path: '/app/evidence', label: 'Evidence Studio', icon: 'BookOpen', section: 'Research' },
   { path: '/app/workbench', label: 'Workbench', icon: 'Wrench', section: 'Research' },
   { path: '/app/reports', label: 'Reports', icon: 'FileText', section: 'Research' },
+  { path: '/app/settings', label: 'Settings', icon: 'Settings', section: 'Research' },
 ];
 
 // Group items by section
