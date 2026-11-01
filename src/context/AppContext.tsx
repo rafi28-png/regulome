@@ -138,17 +138,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [hasUploadedData, setHasUploadedDataState] = useState<boolean>(() => {
-    return readStorageItem('regulome:has-uploaded-data') === 'true';
+    return readStorageItem('regulome:has-uploaded-data-v2') === 'true' && Boolean(readStorageItem('regulome:uploaded-variants-v2'));
   });
 
   const setHasUploadedData = useCallback((hasData: boolean) => {
     setHasUploadedDataState(hasData);
-    writeStorageItem('regulome:has-uploaded-data', hasData ? 'true' : 'false');
+    writeStorageItem('regulome:has-uploaded-data-v2', hasData ? 'true' : 'false');
   }, []);
 
   const clearUploadedData = useCallback(() => {
     setHasUploadedDataState(false);
-    writeStorageItem('regulome:has-uploaded-data', 'false');
+    writeStorageItem('regulome:has-uploaded-data-v2', 'false');
     clearUploadedGenomicVariants();
   }, []);
 
@@ -195,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     writeStorageItem(USER_EMAIL_KEY, null);
     // Clear upload data flag & uploaded genomic variants
     setHasUploadedDataState(false);
-    writeStorageItem('regulome:has-uploaded-data', 'false');
+    writeStorageItem('regulome:has-uploaded-data-v2', 'false');
     clearUploadedGenomicVariants();
     // Return to demo mode
     setModeState('demo');

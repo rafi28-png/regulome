@@ -11,15 +11,13 @@ import { useApp } from '@/context/AppContext';
 import {
   buildRegulatoryProfile,
   getPersonaProfile,
-  parseGenomicFileContent,
-  SAMPLE_REAL_VCF_CONTENT,
   type RawGenomicVariant,
   type RegulatoryProfile,
 } from '@/lib/regulatoryEngine';
 import { apiGetRealVariants } from '@/services/api';
 
-const UPLOADED_VARIANTS_STORAGE_KEY = 'regulome:uploaded-variants-v1';
-const UPLOADED_META_STORAGE_KEY = 'regulome:uploaded-meta-v1';
+const UPLOADED_VARIANTS_STORAGE_KEY = 'regulome:uploaded-variants-v2';
+const UPLOADED_META_STORAGE_KEY = 'regulome:uploaded-meta-v2';
 const PROFILE_UPDATE_EVENT = 'regulome:profile-updated';
 
 interface StoredUploadMeta {
@@ -47,6 +45,8 @@ export function clearUploadedGenomicVariants() {
   try {
     localStorage.removeItem(UPLOADED_VARIANTS_STORAGE_KEY);
     localStorage.removeItem(UPLOADED_META_STORAGE_KEY);
+    localStorage.removeItem('regulome:uploaded-variants-v1');
+    localStorage.removeItem('regulome:uploaded-meta-v1');
     window.dispatchEvent(new CustomEvent(PROFILE_UPDATE_EVENT));
   } catch {
     // Ignore storage errors
@@ -133,7 +133,7 @@ export function useRegulatoryProfile() {
         }
       })
       .catch(() => {
-        // Backend offline — fallback to stored or sample real VCF
+        // Backend offline
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -168,20 +168,10 @@ export function useRegulatoryProfile() {
           liveApiEnrichedCount: backendVariants.length,
         });
       }
-      if (hasUploadedData) {
-        const fallbackReal = parseGenomicFileContent(SAMPLE_REAL_VCF_CONTENT);
-        return buildRegulatoryProfile(fallbackReal, {
-          source: 'sample-vcf',
-          personaId: 'real-genome',
-          filename: 'GRCh38_Regulatory_Panel.vcf',
-          totalParsedVariants: fallbackReal.length,
-          liveApiEnrichedCount: fallbackReal.length,
-        });
-      }
     }
 
     return getPersonaProfile(currentPersona?.id || 'inflammatory-immune');
-  }, [mode, currentPersona?.id, hasUploadedData, backendVariants, version]);
+  }, [mode, currentPersona?.id, backendVariants, version]);
 
   const refreshProfile = useCallback(() => {
     setVersion((v) => v + 1);

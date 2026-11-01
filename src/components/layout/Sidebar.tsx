@@ -51,8 +51,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/app/dashboard', label: 'Dashboard', icon: 'LayoutDashboard', section: 'Core' },
   { path: '/app/data-studio', label: 'Data Studio', icon: 'Upload', section: 'Core' },
+  { path: '/app/dashboard', label: 'Dashboard', icon: 'LayoutDashboard', section: 'Core' },
   { path: '/app/variants', label: 'Variant Explorer', icon: 'Dna', section: 'Core' },
   { path: '/app/expression', label: 'Gene Expression', icon: 'Activity', section: 'Core' },
   { path: '/app/network', label: 'Network Atlas', icon: 'Network', section: 'Visualization' },
@@ -67,6 +67,8 @@ const navItems: NavItem[] = [
   { path: '/app/reports', label: 'Reports', icon: 'FileText', section: 'Research' },
   { path: '/app/settings', label: 'Settings', icon: 'Settings', section: 'Research' },
 ];
+
+const UNLOCKED_BEFORE_UPLOAD = new Set(['/app/data-studio', '/app/workbench', '/app/settings']);
 
 // Group items by section
 function groupBySection(items: NavItem[]): Record<string, NavItem[]> {
@@ -88,7 +90,7 @@ const sectionColors: Record<string, string> = {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { sidebarCollapsed, toggleSidebar, sidebarOpen, setSidebarOpen, currentPersona, mode, userName } = useApp();
+  const { sidebarCollapsed, toggleSidebar, sidebarOpen, setSidebarOpen, currentPersona, mode, userName, hasUploadedData } = useApp();
 
   const grouped = groupBySection(navItems);
 
@@ -168,13 +170,13 @@ export default function Sidebar() {
                   {mode === 'demo' ? 'Demo Mode' : 'Real Mode'}
                 </span>
               </div>
-              {mode === 'real' && userName ? (
+              {mode === 'real' ? (
                 <>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#e8edf5', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {userName}
+                    {userName || 'Authenticated User'}
                   </p>
-                  <p style={{ fontSize: 11, color: '#6b7d9c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    Authenticated · Live APIs
+                  <p style={{ fontSize: 11, color: hasUploadedData ? '#10b981' : '#f59e0b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    {hasUploadedData ? '✓ Real Genome Active' : 'Step 1: Load DNA in Studio'}
                   </p>
                 </>
               ) : currentPersona ? (
@@ -213,10 +215,10 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav
         className="flex-1 overflow-y-auto"
-        style={{ paddingTop: 32, paddingBottom: 32, paddingLeft: sidebarCollapsed ? 8 : 24, paddingRight: sidebarCollapsed ? 8 : 24 }}
+        style={{ paddingTop: 28, paddingBottom: 28, paddingLeft: sidebarCollapsed ? 8 : 20, paddingRight: sidebarCollapsed ? 8 : 20 }}
       >
         {Object.entries(grouped).map(([section, items]) => (
-          <div key={section} style={{ marginBottom: 32 }}>
+          <div key={section} style={{ marginBottom: 26 }}>
             {/* Section label */}
             <AnimatePresence>
               {!sidebarCollapsed && (
@@ -224,7 +226,7 @@ export default function Sidebar() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16, paddingLeft: 8 }}
+                  style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12, paddingLeft: 8 }}
                   className={sectionColors[section] || 'text-rg-text-muted'}
                 >
                   {section}
@@ -233,24 +235,33 @@ export default function Sidebar() {
             </AnimatePresence>
 
             {/* Items */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((item) => {
                 const active = isActive(item.path);
+                const lockedInReal = mode === 'real' && !hasUploadedData && !UNLOCKED_BEFORE_UPLOAD.has(item.path);
                 return (
                   <motion.button
                     key={item.path}
                     onClick={() => handleNav(item.path)}
                     whileHover={{ x: 2 }}
                     whileTap={{ scale: 0.98 }}
-                    style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: sidebarCollapsed ? 10 : 14, paddingRight: sidebarCollapsed ? 10 : 14 }}
+                    style={{ paddingTop: 9, paddingBottom: 9, paddingLeft: sidebarCollapsed ? 10 : 12, paddingRight: sidebarCollapsed ? 10 : 12 }}
                     className={clsx(
-                      'w-full flex items-center gap-3 rounded-lg transition-all duration-200 relative group',
+                      'w-full flex items-center gap-3 rounded-lg transition-all duration-200 relative group cursor-pointer',
                       sidebarCollapsed && 'justify-center',
                       active
-                        ? 'bg-rg-teal-500/10 text-rg-teal-400'
-                        : 'text-rg-text-secondary hover:bg-rg-bg-hover hover:text-rg-text-primary'
+                        ? 'bg-rg-teal-500/12 text-rg-teal-400'
+                        : lockedInReal
+                          ? 'text-rg-text-muted/60 hover:bg-rg-bg-hover'
+                          : 'text-rg-text-secondary hover:bg-rg-bg-hover hover:text-rg-text-primary'
                     )}
-                    title={sidebarCollapsed ? item.label : undefined}
+                    title={
+                      lockedInReal
+                        ? `${item.label} — Load or build a genome in Data Studio first`
+                        : sidebarCollapsed
+                          ? item.label
+                          : undefined
+                    }
                   >
                     {/* Active indicator */}
                     {active && (
@@ -271,12 +282,24 @@ export default function Sidebar() {
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: 'auto' }}
                           exit={{ opacity: 0, width: 0 }}
-                          className="text-sm font-medium whitespace-nowrap overflow-hidden"
+                          className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left"
                         >
                           {item.label}
                         </motion.span>
                       )}
                     </AnimatePresence>
+
+                    {!sidebarCollapsed && item.path === '/app/data-studio' && mode === 'real' && !hasUploadedData && (
+                      <span className="rounded bg-rg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-rg-teal-300">
+                        START
+                      </span>
+                    )}
+
+                    {!sidebarCollapsed && lockedInReal && (
+                      <span className="text-[10px] text-rg-text-muted" title="Requires genome data">
+                        🔒
+                      </span>
+                    )}
 
                     {/* Collapsed tooltip */}
                     {sidebarCollapsed && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,9 +16,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Info,
+  Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '@/context/AppContext';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 // Map paths to page titles
 const pageTitles: Record<string, string> = {
@@ -41,45 +43,15 @@ const pageTitles: Record<string, string> = {
   '/app/design-system': 'Design System',
 };
 
-// Demo notifications
-const DEMO_NOTIFICATIONS = [
-  {
-    id: 1,
-    icon: <AlertCircle size={14} />,
-    iconColor: '#ef4444',
-    title: 'High-impact variant detected',
-    body: 'rs429358 (APOE ε4) flagged — Alzheimer risk modifier',
-    time: '2 min ago',
-    unread: true,
-  },
-  {
-    id: 2,
-    icon: <CheckCircle2 size={14} />,
-    iconColor: '#10b981',
-    title: 'Epigenetic clock analysis complete',
-    body: 'Biological age estimated at 34.2 yrs (−3.8 from chronological)',
-    time: '18 min ago',
-    unread: true,
-  },
-  {
-    id: 3,
-    icon: <Info size={14} />,
-    iconColor: '#8b5cf6',
-    title: 'GTEx expression data refreshed',
-    body: 'FOXO3 tissue expression updated across 54 tissue types',
-    time: '1 hr ago',
-    unread: false,
-  },
-  {
-    id: 4,
-    icon: <Dna size={14} />,
-    iconColor: '#0ae8d2',
-    title: 'New eQTL associations indexed',
-    body: '128 new significant eQTLs added for chr6 regulatory region',
-    time: '3 hrs ago',
-    unread: false,
-  },
-];
+interface NotificationItem {
+  id: string;
+  icon: React.ReactNode;
+  iconColor: string;
+  title: string;
+  body: string;
+  time: string;
+  actionPath?: string;
+}
 
 // Overlay click-outside hook
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClose: () => void) {
@@ -95,11 +67,23 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClose: () =
 export default function Topbar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode, setMode, isAuthenticated, userName, userEmail, logout, setSidebarOpen, setCommandPaletteOpen, currentPersona } = useApp();
+  const {
+    mode,
+    setMode,
+    isAuthenticated,
+    userName,
+    userEmail,
+    hasUploadedData,
+    logout,
+    setSidebarOpen,
+    setCommandPaletteOpen,
+    currentPersona,
+  } = useApp();
+  const { profile } = useRegulatoryProfile();
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS);
+  const [readIds, setReadIds] = useState<string[]>([]);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -107,21 +91,112 @@ export default function Topbar() {
   useClickOutside(notifRef, () => setNotifOpen(false));
   useClickOutside(userMenuRef, () => setUserMenuOpen(false));
 
-  const unreadCount = notifications.filter(n => n.unread).length;
+  // Build context-aware notifications (zero fake notifications in Real Mode)
+  const notifications: NotificationItem[] = useMemo(() => {
+    if (mode === 'real') {
+      if (!hasUploadedData) {
+        return [
+          {
+            id: 'real-welcome',
+            icon: <Info size={14} />,
+            iconColor: '#0ae8d2',
+            title: `Welcome, ${userName || 'Researcher'}`,
+            body: 'Step 1: Open Data Studio to 1-click load a sample genome, build a custom variant panel, or upload a .vcf / .txt file.',
+            time: 'Action required',
+            actionPath: '/app/data-studio',
+          },
+          {
+            id: 'real-validator',
+            icon: <CheckCircle2 size={14} />,
+            iconColor: '#10b981',
+            title: 'Strict Genome Verification Active',
+            body: 'Non-genomic text files are blocked. Only verified VCF v4.2 and 23andMe/AncestryDNA variants are analyzed.',
+            time: 'System active',
+          },
+        ];
+      }
+
+      const topV = profile.variants[0];
+      const activeDomains = profile.diseases.domains.filter((d) => d.variantCount > 0);
+      return [
+        {
+          id: `real-loaded-${profile.meta.filename || 'panel'}`,
+          icon: <CheckCircle2 size={14} />,
+          iconColor: '#10b981',
+          title: `Active Genome: ${profile.meta.filename || 'Custom Panel'}`,
+          body: `${profile.variants.length} verified variants mapped across ${profile.expression.geneSummaries.length} genes and ${activeDomains.length} disease domains.`,
+          time: 'Active session',
+          actionPath: '/app/variants',
+        },
+        ...(topV
+          ? [
+              {
+                id: `real-top-${topV.rsId}`,
+                icon: <Dna size={14} />,
+                iconColor: '#a78bfa',
+                title: `Top Prioritized Variant: ${topV.rsId} (${topV.gene})`,
+                body: `Priority score ${topV.priorityScore}/100 (${topV.refAllele}→${topV.altAllele}) in ${topV.tissues.join(' & ')}.`,
+                time: 'From your upload',
+                actionPath: `/app/variants/${topV.id}`,
+              },
+            ]
+          : []),
+        {
+          id: `real-domains-${activeDomains.length}`,
+          icon: <AlertCircle size={14} />,
+          iconColor: profile.diseases.stats.highRiskDomains > 0 ? '#f59e0b' : '#10b981',
+          title: `Disease Domain Assessment`,
+          body:
+            profile.diseases.stats.highRiskDomains > 0
+              ? `${profile.diseases.stats.highRiskDomains} of 6 domains show elevated regulatory burden based on your uploaded variants.`
+              : `0 high-risk domains detected — your uploaded variants show a low/protective regulatory burden.`,
+          time: 'Computed live',
+          actionPath: '/app/diseases',
+        },
+      ];
+    }
+
+    // Demo Mode notifications reflect the active Demo Persona
+    const demoTop = profile.variants[0];
+    return [
+      {
+        id: `demo-persona-${currentPersona?.id || 'default'}`,
+        icon: <Dna size={14} />,
+        iconColor: '#0ae8d2',
+        title: `Demo Persona: ${currentPersona?.name || 'Alex Rivera'}`,
+        body: `${currentPersona?.label || 'Inflammatory Immune-Skewed'} (${profile.variants.length} regulatory loci loaded).`,
+        time: 'Demo Mode',
+        actionPath: '/app/dashboard',
+      },
+      ...(demoTop
+        ? [
+            {
+              id: `demo-top-${demoTop.rsId}`,
+              icon: <AlertCircle size={14} />,
+              iconColor: '#f59e0b',
+              title: `Lead Demo Variant: ${demoTop.rsId} (${demoTop.gene})`,
+              body: `${demoTop.elementType.replace('_', ' ')} ${demoTop.effect}-of-function (${demoTop.priorityScore}/100) in ${demoTop.tissues.join(' & ')}.`,
+              time: 'Demo Mode',
+              actionPath: `/app/variants/${demoTop.id}`,
+            },
+          ]
+        : []),
+    ];
+  }, [mode, hasUploadedData, userName, profile, currentPersona]);
+
+  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
   const pageTitle = pageTitles[location.pathname] || 'ReguloMe';
 
-  const markAllRead = () => setNotifications(ns => ns.map(n => ({ ...n, unread: false })));
+  const markAllRead = () => setReadIds(notifications.map((n) => n.id));
 
   const handleModeToggle = () => {
     if (mode === 'demo') {
-      // Switching to real mode: if already logged in, just switch. Otherwise go to login.
       if (isAuthenticated) {
         setMode('real');
       } else {
         navigate('/login?reason=real-mode');
       }
     } else {
-      // Switching back to demo is always allowed
       setMode('demo');
     }
   };
@@ -132,8 +207,8 @@ export default function Topbar() {
     navigate('/');
   };
 
-  const personaInitial = (mode === 'real' && userName) ? userName[0] : currentPersona?.name?.[0] ?? 'U';
-  const personaName = (mode === 'real' && userName) ? userName : currentPersona?.name ?? 'Guest';
+  const personaInitial = mode === 'real' && userName ? userName[0].toUpperCase() : currentPersona?.name?.[0] ?? 'U';
+  const personaName = mode === 'real' && userName ? userName : currentPersona?.name ?? 'Guest';
 
   return (
     <header
@@ -178,7 +253,7 @@ export default function Topbar() {
       <div className="flex-1 flex justify-center px-4">
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-lg bg-rg-bg-tertiary border border-rg-border-light hover:border-rg-border text-rg-text-muted hover:text-rg-text-secondary transition-all w-full max-w-md text-sm"
+          className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-lg bg-rg-bg-tertiary border border-rg-border-light hover:border-rg-border text-rg-text-muted hover:text-rg-text-secondary transition-all w-full max-w-md text-sm cursor-pointer"
         >
           <Search size={14} />
           <span className="flex-1 text-left">Search genes, variants, pathways...</span>
@@ -189,7 +264,7 @@ export default function Topbar() {
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         {/* Mobile search */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
@@ -198,40 +273,67 @@ export default function Topbar() {
           <Search size={18} />
         </button>
 
+        {/* Quick Data Studio shortcut in Real Mode */}
+        {mode === 'real' && (
+          <button
+            onClick={() => navigate('/app/data-studio')}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rg-teal-500/12 text-rg-teal-300 border border-rg-teal-500/30 hover:bg-rg-teal-500/20 transition-all cursor-pointer"
+            title="Open Data Studio to load, build, or change genome data"
+          >
+            <Upload size={13} />
+            <span>{hasUploadedData ? 'Change DNA Panel' : 'Load DNA Panel'}</span>
+          </button>
+        )}
+
         {/* Mode toggle */}
         <button
           onClick={handleModeToggle}
           className={clsx(
-            'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono transition-all border',
+            'hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all border cursor-pointer',
             mode === 'demo'
-              ? 'bg-rg-teal-500/10 text-rg-teal-400 border-rg-teal-500/20 hover:bg-rg-teal-500/20'
-              : 'bg-rg-purple-500/10 text-rg-purple-400 border-rg-purple-500/20 hover:bg-rg-purple-500/20'
+              ? 'bg-rg-teal-500/10 text-rg-teal-400 border-rg-teal-500/25 hover:bg-rg-teal-500/20'
+              : 'bg-rg-purple-500/15 text-rg-purple-300 border-rg-purple-500/35 hover:bg-rg-purple-500/25'
           )}
-          title={mode === 'demo' ? 'Switch to Real Mode (requires login)' : 'Switch to Demo Mode'}
+          title={mode === 'demo' ? 'Click to switch to Real Mode' : 'Click to switch back to Demo Mode'}
         >
-          <span className={clsx(
-            'w-1.5 h-1.5 rounded-full',
-            mode === 'demo' ? 'bg-rg-teal-400' : 'bg-rg-purple-400'
-          )} />
-          {mode === 'demo' ? 'DEMO' : 'REAL'}
+          <span
+            className={clsx(
+              'w-2 h-2 rounded-full',
+              mode === 'demo' ? 'bg-rg-teal-400' : 'bg-rg-purple-400'
+            )}
+          />
+          {mode === 'demo' ? 'DEMO MODE' : 'REAL MODE'}
         </button>
 
         {/* ── Notifications ── */}
         <div ref={notifRef} style={{ position: 'relative' }}>
           <button
-            onClick={() => { setNotifOpen(o => !o); setUserMenuOpen(false); }}
-            className="relative p-2 rounded-lg hover:bg-rg-bg-hover text-rg-text-muted hover:text-rg-text-primary transition-colors"
-            title="Notifications"
+            onClick={() => {
+              setNotifOpen((o) => !o);
+              setUserMenuOpen(false);
+            }}
+            className="relative p-2 rounded-lg hover:bg-rg-bg-hover text-rg-text-muted hover:text-rg-text-primary transition-colors cursor-pointer"
+            title="Workspace status & notifications"
           >
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: 6, right: 6,
-                width: 16, height: 16, borderRadius: '50%',
-                background: '#ef4444', color: '#fff',
-                fontSize: 9, fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 5,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: mode === 'real' ? '#8b5cf6' : '#0ae8d2',
+                  color: mode === 'real' ? '#fff' : '#060a14',
+                  fontSize: 9,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 {unreadCount}
               </span>
             )}
@@ -245,25 +347,58 @@ export default function Topbar() {
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
                 transition={{ duration: 0.15 }}
                 style={{
-                  position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                  width: 340, borderRadius: 16,
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: 350,
+                  borderRadius: 16,
                   background: 'rgba(13,17,33,0.97)',
                   border: '1px solid rgba(56,78,122,0.35)',
                   backdropFilter: 'blur(24px)',
                   boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
-                  zIndex: 100, overflow: 'hidden',
+                  zIndex: 100,
+                  overflow: 'hidden',
                 }}
               >
                 {/* Header */}
-                <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(56,78,122,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#e8edf5' }}>Notifications</span>
+                <div
+                  style={{
+                    padding: '14px 18px',
+                    borderBottom: '1px solid rgba(56,78,122,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#e8edf5' }}>
+                    {mode === 'real' ? 'Real Mode Status' : 'Demo Mode Status'}
+                  </span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {unreadCount > 0 && (
-                      <button onClick={markAllRead} style={{ fontSize: 11, color: '#0ae8d2', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                      <button
+                        onClick={markAllRead}
+                        style={{
+                          fontSize: 11,
+                          color: '#0ae8d2',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
                         Mark all read
                       </button>
                     )}
-                    <button onClick={() => setNotifOpen(false)} style={{ color: '#6b7d9c', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                    <button
+                      onClick={() => setNotifOpen(false)}
+                      style={{
+                        color: '#6b7d9c',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                      }}
+                    >
                       <X size={14} />
                     </button>
                   </div>
@@ -271,24 +406,50 @@ export default function Topbar() {
 
                 {/* Notification list */}
                 <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                  {notifications.map(n => (
-                    <div key={n.id} style={{
-                      padding: '12px 18px',
-                      borderBottom: '1px solid rgba(56,78,122,0.1)',
-                      background: n.unread ? 'rgba(10,232,210,0.03)' : 'transparent',
-                      display: 'flex', gap: 12, alignItems: 'flex-start',
-                    }}>
-                      <span style={{ color: n.iconColor, flexShrink: 0, marginTop: 2 }}>{n.icon}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#e8edf5' }}>{n.title}</span>
-                          {n.unread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0ae8d2', flexShrink: 0 }} />}
+                  {notifications.map((n) => {
+                    const isUnread = !readIds.includes(n.id);
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          setReadIds((prev) => (prev.includes(n.id) ? prev : [...prev, n.id]));
+                          if (n.actionPath) {
+                            setNotifOpen(false);
+                            navigate(n.actionPath);
+                          }
+                        }}
+                        style={{
+                          padding: '12px 18px',
+                          borderBottom: '1px solid rgba(56,78,122,0.1)',
+                          background: isUnread ? 'rgba(10,232,210,0.03)' : 'transparent',
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'flex-start',
+                          cursor: n.actionPath ? 'pointer' : 'default',
+                        }}
+                      >
+                        <span style={{ color: n.iconColor, flexShrink: 0, marginTop: 2 }}>{n.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#e8edf5' }}>{n.title}</span>
+                            {isUnread && (
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: '#0ae8d2',
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                          </div>
+                          <p style={{ fontSize: 11, color: '#8899b8', lineHeight: 1.4, margin: 0 }}>{n.body}</p>
+                          <span style={{ fontSize: 10, color: '#4a5568', marginTop: 4, display: 'block' }}>{n.time}</span>
                         </div>
-                        <p style={{ fontSize: 11, color: '#8899b8', lineHeight: 1.4, margin: 0 }}>{n.body}</p>
-                        <span style={{ fontSize: 10, color: '#4a5568', marginTop: 4, display: 'block' }}>{n.time}</span>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -298,16 +459,28 @@ export default function Topbar() {
         {/* ── User Menu ── */}
         <div ref={userMenuRef} style={{ position: 'relative' }}>
           <button
-            onClick={() => { setUserMenuOpen(o => !o); setNotifOpen(false); }}
-            className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-rg-bg-hover transition-colors"
+            onClick={() => {
+              setUserMenuOpen((o) => !o);
+              setNotifOpen(false);
+            }}
+            className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-lg hover:bg-rg-bg-hover transition-colors cursor-pointer"
             title="Account menu"
           >
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0ae8d2, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 12, fontWeight: 800, flexShrink: 0,
-            }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #0ae8d2, #8b5cf6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 800,
+                flexShrink: 0,
+              }}
+            >
               {personaInitial}
             </div>
             <ChevronDown size={14} className="text-rg-text-muted hidden sm:block" />
@@ -321,38 +494,63 @@ export default function Topbar() {
                 exit={{ opacity: 0, y: 8, scale: 0.97 }}
                 transition={{ duration: 0.15 }}
                 style={{
-                  position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                  width: 240, borderRadius: 16,
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: 250,
+                  borderRadius: 16,
                   background: 'rgba(13,17,33,0.97)',
                   border: '1px solid rgba(56,78,122,0.35)',
                   backdropFilter: 'blur(24px)',
                   boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
-                  zIndex: 100, overflow: 'hidden',
+                  zIndex: 100,
+                  overflow: 'hidden',
                 }}
               >
                 {/* Identity block */}
                 <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(56,78,122,0.2)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #0ae8d2, #8b5cf6)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', fontSize: 14, fontWeight: 800, flexShrink: 0,
-                    }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #0ae8d2, #8b5cf6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
                       {personaInitial}
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e8edf5' }}>{personaName}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e8edf5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {personaName}
+                      </div>
                       {mode === 'real' && userEmail && (
-                        <div style={{ fontSize: 11, color: '#6b7d9c', marginTop: 1 }}>{userEmail}</div>
+                        <div style={{ fontSize: 11, color: '#6b7d9c', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {userEmail}
+                        </div>
                       )}
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3,
-                        padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-                        background: mode === 'demo' ? 'rgba(10,232,210,0.1)' : 'rgba(139,92,246,0.1)',
-                        color: mode === 'demo' ? '#0ae8d2' : '#a78bfa',
-                        border: `1px solid ${mode === 'demo' ? 'rgba(10,232,210,0.2)' : 'rgba(139,92,246,0.2)'}`,
-                      }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 4,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: mode === 'demo' ? 'rgba(10,232,210,0.1)' : 'rgba(139,92,246,0.1)',
+                          color: mode === 'demo' ? '#0ae8d2' : '#a78bfa',
+                          border: `1px solid ${mode === 'demo' ? 'rgba(10,232,210,0.2)' : 'rgba(139,92,246,0.2)'}`,
+                        }}
+                      >
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />
                         {mode === 'demo' ? 'DEMO MODE' : 'REAL MODE'}
                       </div>
@@ -363,8 +561,48 @@ export default function Topbar() {
                 {/* Menu items */}
                 <div style={{ padding: '8px 0' }}>
                   <button
-                    onClick={() => { setUserMenuOpen(false); setCommandPaletteOpen(true); }}
-                    style={{ width: '100%', padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: '#c4cfe8', fontSize: 13, textAlign: 'left' }}
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      navigate('/app/data-studio');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 18px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: '#0ae8d2',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textAlign: 'left',
+                    }}
+                    className="hover:bg-rg-bg-hover transition-colors"
+                  >
+                    <Upload size={14} color="#0ae8d2" />
+                    Data Studio (Load / Build DNA)
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      setCommandPaletteOpen(true);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 18px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: '#c4cfe8',
+                      fontSize: 13,
+                      textAlign: 'left',
+                    }}
                     className="hover:bg-rg-bg-hover transition-colors"
                   >
                     <Search size={14} color="#6b7d9c" />
@@ -373,8 +611,23 @@ export default function Topbar() {
                   </button>
 
                   <button
-                    onClick={() => { setUserMenuOpen(false); handleModeToggle(); }}
-                    style={{ width: '100%', padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: '#c4cfe8', fontSize: 13, textAlign: 'left' }}
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      handleModeToggle();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 18px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: '#c4cfe8',
+                      fontSize: 13,
+                      textAlign: 'left',
+                    }}
                     className="hover:bg-rg-bg-hover transition-colors"
                   >
                     <FlaskConical size={14} color="#6b7d9c" />
@@ -383,19 +636,50 @@ export default function Topbar() {
 
                   <div style={{ margin: '8px 0', borderTop: '1px solid rgba(56,78,122,0.15)' }} />
 
-                  {mode === 'demo' ? (
+                  {mode === 'demo' && !isAuthenticated ? (
                     <>
                       <button
-                        onClick={() => { setUserMenuOpen(false); navigate('/login'); }}
-                        style={{ width: '100%', padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: '#c4cfe8', fontSize: 13, textAlign: 'left' }}
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          navigate('/login');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 18px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          color: '#c4cfe8',
+                          fontSize: 13,
+                          textAlign: 'left',
+                        }}
                         className="hover:bg-rg-bg-hover transition-colors"
                       >
                         <LogIn size={14} color="#0ae8d2" />
                         Sign In
                       </button>
                       <button
-                        onClick={() => { setUserMenuOpen(false); navigate('/signup'); }}
-                        style={{ width: '100%', padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: '#0ae8d2', fontSize: 13, fontWeight: 700, textAlign: 'left' }}
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          navigate('/signup');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 18px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          color: '#0ae8d2',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          textAlign: 'left',
+                        }}
                         className="hover:bg-rg-bg-hover transition-colors"
                       >
                         <UserCircle size={14} color="#0ae8d2" />
@@ -405,7 +689,19 @@ export default function Topbar() {
                   ) : (
                     <button
                       onClick={handleSignOut}
-                      style={{ width: '100%', padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: '#ef4444', fontSize: 13, textAlign: 'left' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 18px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        color: '#ef4444',
+                        fontSize: 13,
+                        textAlign: 'left',
+                      }}
                       className="hover:bg-rg-bg-hover transition-colors"
                     >
                       <LogOut size={14} color="#ef4444" />
