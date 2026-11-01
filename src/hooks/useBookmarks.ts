@@ -11,10 +11,11 @@ import { useApp } from '@/context/AppContext';
 import { fetchApi } from '@/lib/api';
 
 const DEMO_BOOKMARKS_KEY = 'regulome:bookmarks';
+const REAL_BOOKMARKS_KEY = 'regulome:real-bookmarks';
 
-function readDemoBookmarks(): Set<string> {
+function readStoredBookmarks(key: string): Set<string> {
   try {
-    const raw = localStorage.getItem(DEMO_BOOKMARKS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return new Set();
     const ids = JSON.parse(raw) as string[];
     return new Set(ids);
@@ -23,9 +24,9 @@ function readDemoBookmarks(): Set<string> {
   }
 }
 
-function writeDemoBookmarks(ids: Set<string>) {
+function writeStoredBookmarks(key: string, ids: Set<string>) {
   try {
-    localStorage.setItem(DEMO_BOOKMARKS_KEY, JSON.stringify([...ids]));
+    localStorage.setItem(key, JSON.stringify([...ids]));
   } catch {
     // ignore storage errors
   }
@@ -49,55 +50,50 @@ interface BookmarkMeta {
 export function useBookmarks(initialBookmarkedIds?: string[]): UseBookmarksReturn {
   const { mode, currentPersona } = useApp();
   const isDemo = mode === 'demo';
+  const storageKey = isDemo ? DEMO_BOOKMARKS_KEY : REAL_BOOKMARKS_KEY;
 
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
-    if (isDemo) {
-      const stored = readDemoBookmarks();
-      // Merge with any pre-bookmarked items from static data
-      if (initialBookmarkedIds) {
-        initialBookmarkedIds.forEach(id => stored.add(id));
-      }
-      return stored;
+    const stored = readStoredBookmarks(storageKey);
+    if (isDemo && initialBookmarkedIds) {
+      initialBookmarkedIds.forEach(id => stored.add(id));
     }
-    return new Set<string>();
+    return stored;
   });
 
-  // On mount in real mode: fetch bookmarks from API
+  // Sync when switching between Demo and Real mode
   useEffect(() => {
+    const stored = readStoredBookmarks(storageKey);
+    if (isDemo && initialBookmarkedIds) {
+      initialBookmarkedIds.forEach(id => stored.add(id));
+    }
+    setBookmarks(stored);
+
     if (!isDemo) {
       fetchApi<{ bookmarks: { variant_id: string }[] }>('/bookmarks/')
         .then(resp => {
-          const ids = new Set(resp.bookmarks.map(b => b.variant_id));
-          setBookmarks(ids);
+          const merged = new Set([...stored, ...resp.bookmarks.map(b => b.variant_id)]);
+          writeStoredBookmarks(REAL_BOOKMARKS_KEY, merged);
+          setBookmarks(merged);
         })
         .catch(() => {
-          // Backend not reachable — start with empty
-          setBookmarks(new Set());
+          // Backend offline — keep localStorage bookmarks
         });
     }
-  }, [isDemo]);
+  }, [isDemo, storageKey, initialBookmarkedIds]);
 
   const toggleBookmark = useCallback(async (variantId: string, meta?: BookmarkMeta) => {
-    if (isDemo) {
-      // Demo mode: persist to localStorage
-      setBookmarks(prev => {
-        const next = new Set(prev);
-        if (next.has(variantId)) {
-          next.delete(variantId);
-        } else {
-          next.add(variantId);
-        }
-        writeDemoBookmarks(next);
-        return next;
-      });
-    } else {
-      // Real mode: call backend, toggle optimistically
-      setBookmarks(prev => {
-        const next = new Set(prev);
-        if (next.has(variantId)) next.delete(variantId);
-        else next.add(variantId);
-        return next;
-      });
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      if (next.has(variantId)) {
+        next.delete(variantId);
+      } else {
+        next.add(variantId);
+      }
+      writeStoredBookmarks(storageKey, next);
+      return next;
+    });
+
+    if (!isDemo) {
       try {
         const params = new URLSearchParams();
         if (currentPersona?.id) params.set('persona_id', currentPersona.id);
@@ -107,18 +103,11 @@ export function useBookmarks(initialBookmarkedIds?: string[]): UseBookmarksRetur
         if (meta?.position) params.set('position', String(meta.position));
 
         await fetchApi(`/bookmarks/${variantId}?${params.toString()}`, { method: 'POST' });
-      } catch (err) {
-        // Revert optimistic update if API fails
-        console.error('Bookmark toggle failed:', err);
-        setBookmarks(prev => {
-          const next = new Set(prev);
-          if (next.has(variantId)) next.delete(variantId);
-          else next.add(variantId);
-          return next;
-        });
+      } catch {
+        // Backend offline — bookmark is already persisted in localStorage
       }
     }
-  }, [isDemo, currentPersona]);
+  }, [isDemo, storageKey, currentPersona]);
 
   const isBookmarked = useCallback((id: string) => bookmarks.has(id), [bookmarks]);
 

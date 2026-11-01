@@ -1879,7 +1879,7 @@ export function buildRegulatoryProfile(
           : []),
       ];
 
-  // 11. Simulator Baseline calibrated to profile
+  // 11. Simulator Baseline & Age Trends calibrated to profile
   const inflBurden = diseaseDomains.find((d) => d.id === 'inflammatory')?.burdenScore ?? 25;
   const cardioBurden = diseaseDomains.find((d) => d.id === 'cardiovascular')?.burdenScore ?? 20;
   const simulatorBaseline = {
@@ -1889,6 +1889,28 @@ export function buildRegulatoryProfile(
     mitochondrialHealth: Math.min(95, Math.max(35, 68 - Math.round(ageDelta * 3))),
     cardiovascularRisk: cardioBurden,
   };
+
+  const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
+  const dynamicDashboardAgeTrend: DashboardAgeTrendPoint[] = months.map((month, idx) => {
+    const frac = (idx - 7) / 7; // -1.0 to 0.0
+    const shift = ageDelta >= 0 ? frac * 0.9 : -frac * 0.9;
+    return {
+      month,
+      epigeneticAge: Number((bioAge + shift).toFixed(1)),
+      regulatoryAge: Number((regAge + shift * 1.1).toFixed(1)),
+      chronological: Number((chronAge + frac * 0.6).toFixed(1)),
+    };
+  });
+
+  const dynamicClockAgeTrend: ClockAgeTrendPoint[] = [20, 22, 24, 26, 28, 30, 32, 34].map((agePt) => {
+    const progress = (agePt - 20) / Math.max(1, chronAge - 20);
+    return {
+      age: agePt,
+      bioAge: Number((agePt + ageDelta * progress).toFixed(1)),
+      methylAge: Number((agePt + (methylAge - chronAge) * progress).toFixed(1)),
+      regulatoryAge: Number((agePt + (regAge - chronAge) * progress).toFixed(1)),
+    };
+  });
 
   return {
     meta: {
@@ -1911,7 +1933,7 @@ export function buildRegulatoryProfile(
       variantImpactData,
       tissueImpactData,
       diseaseRiskData,
-      ageTrendData: defaultDashboardAgeTrend,
+      ageTrendData: dynamicDashboardAgeTrend,
       recentActivity,
       topVariants,
     },
@@ -1979,7 +2001,7 @@ export function buildRegulatoryProfile(
     },
     clock: {
       subjectProfile,
-      ageTrendData: defaultClockAgeTrend,
+      ageTrendData: dynamicClockAgeTrend,
       clockModels,
       methylationSites: dynamicMethylationSites,
       organAges,

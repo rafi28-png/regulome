@@ -371,7 +371,18 @@ function FunctionalSummary({ variant }: { variant: VariantDetail }) {
 
 // ── Evidence & Sources ──
 function EvidencePanel({ variant }: { variant: VariantDetail }) {
-  const evidence = getVariantEvidence(variant.id);
+  const { profile } = useRegulatoryProfile();
+  const matchedRecord = profile.evidence.records.find(
+    (r) => r.id === variant.id || r.rsId.toLowerCase() === variant.rsId.toLowerCase()
+  );
+  const evidence = matchedRecord
+    ? {
+        ...matchedRecord,
+        resolvedSources: matchedRecord.sources.map((sid) =>
+          profile.evidence.sources.find((s) => s.id === sid)
+        ),
+      }
+    : getVariantEvidence(variant.id);
 
   return (
     <motion.div variants={stagger.item}>

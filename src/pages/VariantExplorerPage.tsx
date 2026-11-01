@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Download,
   UploadCloud,
-  RefreshCw,
 } from 'lucide-react';
 import {
   GlassCard,
@@ -23,16 +22,13 @@ import {
   EvidenceBadge,
   Input,
   Button,
-  TableSkeleton,
-  ErrorState,
 } from '@/components/ui';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useApp } from '@/context/AppContext';
 import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
-import { apiGetRealVariants, apiExportRealVariants } from '@/services/api';
+import { apiExportRealVariants } from '@/services/api';
 import {
   variantFilterOptions,
-  variantSummaryStats,
   type VariantExplorerEntry,
 } from '@/data/variantData';
 import type { EvidenceLevel, RegulatoryElementType } from '@/types';
@@ -125,17 +121,36 @@ function FilterPill({
 }
 
 // ── God-Mode Hero Section ──
-function HeroSection({ liveBookmarkCount, filteredCount, showBookmarkedOnly, setShowBookmarkedOnly, showFilters, setShowFilters, activeFilterCount }: {
-  liveBookmarkCount: number; filteredCount: number;
-  showBookmarkedOnly: boolean; setShowBookmarkedOnly: (v: boolean) => void;
-  showFilters: boolean; setShowFilters: (v: boolean) => void;
+function HeroSection({
+  variants,
+  liveBookmarkCount,
+  showBookmarkedOnly,
+  setShowBookmarkedOnly,
+  showFilters,
+  setShowFilters,
+  activeFilterCount,
+  exporting,
+  onExport,
+}: {
+  variants: VariantExplorerEntry[];
+  liveBookmarkCount: number;
+  showBookmarkedOnly: boolean;
+  setShowBookmarkedOnly: (v: boolean) => void;
+  showFilters: boolean;
+  setShowFilters: (v: boolean) => void;
   activeFilterCount: number;
+  exporting: boolean;
+  onExport: (fmt: 'csv' | 'json') => void;
 }) {
+  const highPriority = variants.filter((v) => v.priorityScore >= 85).length;
+  const gainCount = variants.filter((v) => v.effect === 'gain').length;
+  const lossCount = variants.filter((v) => v.effect === 'loss').length;
+
   const stats = [
-    { label: 'Total Variants', value: filteredCount.toLocaleString(), color: '#e8edf5' },
-    { label: 'High Priority', value: variantSummaryStats.highPriority, color: '#0ae8d2' },
-    { label: 'Gain-of-Function', value: variantSummaryStats.gainOfFunction.toLocaleString(), color: effectColors.gain },
-    { label: 'Loss-of-Function', value: variantSummaryStats.lossOfFunction.toLocaleString(), color: effectColors.loss },
+    { label: 'Total Variants', value: variants.length.toLocaleString(), color: '#e8edf5' },
+    { label: 'High Priority', value: highPriority.toLocaleString(), color: '#0ae8d2' },
+    { label: 'Gain-of-Function', value: gainCount.toLocaleString(), color: effectColors.gain },
+    { label: 'Loss-of-Function', value: lossCount.toLocaleString(), color: effectColors.loss },
     { label: 'Bookmarked', value: liveBookmarkCount, color: '#f59e0b' },
   ];
 
@@ -158,7 +173,7 @@ function HeroSection({ liveBookmarkCount, filteredCount, showBookmarkedOnly, set
         style={{ position: 'absolute', bottom: -30, left: 60, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle, rgba(10,232,210,0.06) 0%, transparent 65%)', filter: 'blur(35px)' }}
       />
 
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, marginBottom: 36 }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, marginBottom: 36, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
@@ -187,7 +202,13 @@ function HeroSection({ liveBookmarkCount, filteredCount, showBookmarkedOnly, set
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Button variant="ghost" size="sm" onClick={() => onExport('csv')} disabled={exporting || variants.length === 0} icon={<Download size={13} />}>
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => onExport('json')} disabled={exporting || variants.length === 0} icon={<Download size={13} />}>
+            JSON
+          </Button>
           <Button variant={showBookmarkedOnly ? 'teal' : 'ghost'} size="sm" icon={<BookmarkCheck size={14} />} onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}>Bookmarked</Button>
           <Button variant={showFilters ? 'teal' : 'secondary'} size="sm" icon={<SlidersHorizontal size={14} />} onClick={() => setShowFilters(!showFilters)}>
             Filters{activeFilterCount > 0 && <span style={{ marginLeft: 6, width: 18, height: 18, borderRadius: '50%', background: '#0ae8d2', color: '#0a0e1a', fontSize: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{activeFilterCount}</span>}
@@ -390,63 +411,6 @@ function VariantRow({
   );
 }
 
-// ── Real variant row (from backend) ──
-function RealVariantRow({ v, index }: { v: any; index: number }) {
-  const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
-  const impactColor = v.impact === 'HIGH' ? '#ef4444' : v.impact === 'MODERATE' ? '#f59e0b' : '#6b7d9c';
-  const sigColor = (v.clinical_significance || '').toLowerCase().includes('pathogenic') ? '#ef4444'
-    : (v.clinical_significance || '').toLowerCase().includes('risk') ? '#f59e0b'
-    : (v.clinical_significance || '').toLowerCase().includes('benign') ? '#10b981'
-    : '#6b7d9c';
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.025 }}
-      onClick={() => navigate(`/app/variants/${v.rsid}`)}
-      className="grid items-center px-5 py-4 rounded-xl border border-rg-border/50 bg-rg-bg-tertiary/50 hover:bg-rg-bg-hover/80 hover:border-rg-border cursor-pointer group transition-all duration-200"
-      style={{ gridTemplateColumns: 'minmax(130px,1fr) minmax(100px,0.8fr) 120px 90px 90px 70px 36px', gap: 12 }}
-    >
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-bold text-rg-teal-400 group-hover:text-rg-teal-300">{v.rsid}</span>
-          <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(v.rsid); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-            className="opacity-0 group-hover:opacity-100 text-rg-text-muted hover:text-rg-text-primary transition-all cursor-pointer">
-            {copied ? <span className="text-[10px] text-emerald-400">Copied!</span> : <Copy size={11} />}
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <span className="text-xs font-semibold text-rg-text-primary">{v.gene_name || '—'}</span>
-          <span className="text-[11px] text-rg-text-muted font-mono">{v.chromosome}:{v.position?.toLocaleString()}</span>
-        </div>
-      </div>
-      <div>
-        <p className="text-xs text-rg-text-muted truncate max-w-[100px]" title={v.condition}>{v.top_tissue || '—'}</p>
-        <p className="text-[11px] text-rg-text-muted mt-0.5 truncate" title={v.condition}>{v.condition?.split(';')[0] || '—'}</p>
-      </div>
-      <div>
-        <span className="text-[11px] font-medium text-rg-text-secondary truncate block" title={v.regulatory_element_type}>{v.regulatory_element_type || 'Unknown'}</span>
-      </div>
-      <div>
-        <span className="inline-block text-[11px] font-bold rounded px-2 py-1" style={{ color: impactColor, background: impactColor + '18' }}>{v.impact || 'MODIFIER'}</span>
-      </div>
-      <div>
-        <span className="text-[11px] leading-tight block" style={{ color: sigColor }} title={v.clinical_significance}>
-          {(v.clinical_significance || 'Unknown').replace('Not in ClinVar', 'Not in DB')}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 justify-end">
-        <div className="w-8 h-1.5 rounded-full bg-rg-bg-primary overflow-hidden">
-          <div style={{ width: `${Math.min(v.impact_score || 0, 100)}%`, height: '100%', background: 'linear-gradient(90deg,#0ae8d2,#8b5cf6)', borderRadius: 999 }} />
-        </div>
-        <span className="text-sm font-bold text-rg-text-primary">{Math.round(v.impact_score || 0)}</span>
-      </div>
-      <ArrowRight size={14} className="text-rg-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-    </motion.div>
-  );
-}
-
 // ── Main Variant Explorer Page ──
 export default function VariantExplorerPage() {
   const navigate = useNavigate();
@@ -455,15 +419,7 @@ export default function VariantExplorerPage() {
   const activeVariants = profile.variants;
   const isDemo = mode === 'demo';
 
-  // ── Real Mode state ──
-  const [realVariants, setRealVariants] = useState<any[]>([]);
-  const [realTotal, setRealTotal] = useState(0);
-  const [realPage, setRealPage] = useState(1);
-  const [realTotalPages, setRealTotalPages] = useState(1);
-  const [realLoading, setRealLoading] = useState(false);
-  const [realError, setRealError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sortField, setSortField] = useState<SortField>('priorityScore');
@@ -480,95 +436,23 @@ export default function VariantExplorerPage() {
   const initialBookmarkedIds = useMemo(() => activeVariants.filter(v => v.bookmarked).map(v => v.id), [activeVariants]);
   const { bookmarks, toggleBookmark } = useBookmarks(initialBookmarkedIds);
 
-  // Convert synthesized profile variants to RealVariantRow format when backend is offline
-  const fallbackRealRows = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return activeVariants
-      .filter((v) => !q || v.rsId.toLowerCase().includes(q) || v.gene.toLowerCase().includes(q) || v.chromosome.toLowerCase().includes(q) || v.tissues.some(t => t.toLowerCase().includes(q)))
-      .map((v) => ({
-        rsid: v.rsId,
-        chromosome: v.chromosome,
-        position: v.position,
-        genotype: `${v.refAllele}/${v.altAllele}`,
-        gene_name: v.gene,
-        top_tissue: v.tissues.join(', '),
-        condition: v.linkedDiseases.join(', '),
-        regulatory_element_type: v.elementType.replace('_', ' '),
-        impact: v.priorityScore >= 85 ? 'HIGH' : v.priorityScore >= 72 ? 'MODERATE' : 'MODIFIER',
-        clinical_significance: v.priorityScore >= 88 ? 'Pathogenic / Risk factor' : 'Risk factor',
-        impact_score: v.priorityScore,
-        rarity_label: v.evidenceLevel === 'validated' ? 'ClinVar Validated' : 'eQTL Mapped',
-      }));
-  }, [activeVariants, searchQuery]);
-
-  // ── Real Mode: fetch from /real/variants/ with seamless fallback to synthesized profile ──
-  const fetchReal = useCallback(async (page = 1, q = '') => {
-    setRealLoading(true);
-    setRealError(null);
-    try {
-      const data = await apiGetRealVariants({ page, per_page: 50, search: q });
-      const items = data.variants ?? data.items ?? [];
-      if (items.length > 0) {
-        setRealVariants(items);
-        setRealTotal(data.total ?? items.length);
-        setRealTotalPages(data.total_pages ?? data.pages ?? 1);
-        setRealPage(page);
-      } else {
-        setRealVariants(fallbackRealRows);
-        setRealTotal(fallbackRealRows.length);
-        setRealTotalPages(1);
-        setRealPage(1);
-      }
-    } catch {
-      // Backend offline (e.g., GitHub Pages) — use client-side annotated variants
-      setRealVariants(fallbackRealRows);
-      setRealTotal(fallbackRealRows.length);
-      setRealTotalPages(1);
-      setRealPage(1);
-    } finally {
-      setRealLoading(false);
-    }
-  }, [fallbackRealRows]);
-
-  useEffect(() => { if (!isDemo && hasUploadedData) fetchReal(1, searchQuery); }, [isDemo, hasUploadedData, fetchReal, searchQuery]);
-
-  const handleExport = async (fmt: 'json' | 'csv') => {
-    setExporting(true);
-    try {
-      const blob = await apiExportRealVariants(fmt);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `regulome_variants.${fmt}`; a.click(); URL.revokeObjectURL(url);
-    } catch {
-      // Client-side export fallback
-      const rows = realVariants.length > 0 ? realVariants : fallbackRealRows;
-      let content = '';
-      let mime = 'application/json';
-      if (fmt === 'json') {
-        content = JSON.stringify(rows, null, 2);
-      } else {
-        const headers = ['rsid', 'chromosome', 'position', 'genotype', 'gene_name', 'regulatory_element_type', 'impact', 'impact_score', 'top_tissue'];
-        content = [
-          headers.join(','),
-          ...rows.map((r: any) => headers.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
-        ].join('\n');
-        mime = 'text/csv';
-      }
-      const blob = new Blob([content], { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `regulome_variants.${fmt}`; a.click(); URL.revokeObjectURL(url);
-    } finally { setExporting(false); }
-  };
-
-  // ── Demo mode filtering ────────────────────────────────────────────────────
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('desc'); }
   };
+
   const filteredVariants = useMemo(() => {
     let variants = activeVariants.map(v => ({ ...v, bookmarked: bookmarks.has(v.id) }));
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      variants = variants.filter(v => v.rsId.toLowerCase().includes(q) || v.gene.toLowerCase().includes(q) || v.chromosome.toLowerCase().includes(q) || v.tissues.some(t => t.toLowerCase().includes(q)) || v.affectedTFs.some(tf => tf.toLowerCase().includes(q)) || v.linkedDiseases.some(d => d.toLowerCase().includes(q)));
+      variants = variants.filter(v =>
+        v.rsId.toLowerCase().includes(q) ||
+        v.gene.toLowerCase().includes(q) ||
+        v.chromosome.toLowerCase().includes(q) ||
+        v.tissues.some(t => t.toLowerCase().includes(q)) ||
+        v.affectedTFs.some(tf => tf.toLowerCase().includes(q)) ||
+        v.linkedDiseases.some(d => d.toLowerCase().includes(q))
+      );
     }
     if (selectedTissue !== 'All') variants = variants.filter(v => v.tissues.includes(selectedTissue));
     if (selectedElement !== 'All') variants = variants.filter(v => v.elementType === selectedElement);
@@ -576,12 +460,79 @@ export default function VariantExplorerPage() {
     if (selectedLevel !== 'All') variants = variants.filter(v => v.evidenceLevel === selectedLevel);
     if (selectedDisease !== 'All') variants = variants.filter(v => v.linkedDiseases.includes(selectedDisease));
     if (showBookmarkedOnly) variants = variants.filter(v => v.bookmarked);
-    variants.sort((a, b) => { let c = 0; if (sortField === 'gene') c = a.gene.localeCompare(b.gene); else if (sortField === 'chromosome') c = a.chromosome.localeCompare(b.chromosome); else c = (a[sortField] as number) - (b[sortField] as number); return sortDir === 'asc' ? c : -c; });
+    variants.sort((a, b) => {
+      let c = 0;
+      if (sortField === 'gene') c = a.gene.localeCompare(b.gene);
+      else if (sortField === 'chromosome') c = a.chromosome.localeCompare(b.chromosome);
+      else c = (a[sortField] as number) - (b[sortField] as number);
+      return sortDir === 'asc' ? c : -c;
+    });
     return variants;
   }, [activeVariants, searchQuery, selectedTissue, selectedElement, selectedEffect, selectedLevel, selectedDisease, showBookmarkedOnly, sortField, sortDir, bookmarks]);
 
   const activeFilterCount = [selectedTissue, selectedElement, selectedEffect, selectedLevel, selectedDisease].filter(f => f !== 'All').length + (showBookmarkedOnly ? 1 : 0);
-  const clearFilters = () => { setSelectedTissue('All'); setSelectedElement('All'); setSelectedEffect('All'); setSelectedLevel('All'); setSelectedDisease('All'); setShowBookmarkedOnly(false); setSearchQuery(''); };
+  const clearFilters = () => {
+    setSelectedTissue('All');
+    setSelectedElement('All');
+    setSelectedEffect('All');
+    setSelectedLevel('All');
+    setSelectedDisease('All');
+    setShowBookmarkedOnly(false);
+    setSearchQuery('');
+  };
+
+  const handleExport = async (fmt: 'json' | 'csv') => {
+    setExporting(true);
+    try {
+      if (!isDemo) {
+        const blob = await apiExportRealVariants(fmt);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `regulome_variants.${fmt}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      throw new Error('Use client export');
+    } catch {
+      const rows = filteredVariants.map((v) => ({
+        rsid: v.rsId,
+        chromosome: v.chromosome,
+        position: v.position,
+        genotype: `${v.refAllele}/${v.altAllele}`,
+        gene: v.gene,
+        element_type: v.elementType,
+        effect: v.effect,
+        evidence_level: v.evidenceLevel,
+        priority_score: v.priorityScore,
+        tissues: v.tissues.join('; '),
+        affected_tfs: v.affectedTFs.join('; '),
+        linked_diseases: v.linkedDiseases.join('; '),
+      }));
+      let content = '';
+      let mime = 'application/json';
+      if (fmt === 'json') {
+        content = JSON.stringify(rows, null, 2);
+      } else {
+        const headers = ['rsid', 'chromosome', 'position', 'genotype', 'gene', 'element_type', 'effect', 'evidence_level', 'priority_score', 'tissues', 'affected_tfs', 'linked_diseases'];
+        content = [
+          headers.join(','),
+          ...rows.map((r: Record<string, unknown>) => headers.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
+        ].join('\n');
+        mime = 'text/csv';
+      }
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `regulome_variants.${fmt}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ── Real mode: no data uploaded ───────────────────────────────────────────
   if (!isDemo && !hasUploadedData) {
@@ -590,72 +541,27 @@ export default function VariantExplorerPage() {
         <GlassCard padding="xl" className="max-w-lg text-center">
           <UploadCloud size={48} className="mx-auto text-rg-purple-400 mb-6" />
           <h2 className="text-2xl font-bold text-rg-text-primary mb-3">No genome data yet</h2>
-          <p className="text-rg-text-secondary leading-relaxed mb-8">Upload your VCF in Data Studio to populate the Variant Explorer with your real annotated variants.</p>
+          <p className="text-rg-text-secondary leading-relaxed mb-8">Load a sample genome or upload your VCF / 23andMe file in Data Studio to populate the Variant Explorer with your real annotated variants.</p>
           <Button variant="primary" glow onClick={() => navigate('/app/data-studio')} iconRight={<ArrowRight size={16} />}>Go to Data Studio</Button>
         </GlassCard>
       </div>
     );
   }
 
-  // ── Real mode view ────────────────────────────────────────────────────────
-  if (!isDemo) {
-    return (
-      <motion.div variants={stagger.container} initial="initial" animate="animate" style={{ display: 'flex', flexDirection: 'column', gap: 32, width: '100%' }}>
-        <motion.div variants={stagger.item}>
-          <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-rg-purple-500/25 bg-rg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-rg-purple-300"><Dna size={13} /> REAL MODE · LIVE VARIANTS</div>
-              <h1 className="text-4xl font-bold tracking-tight text-rg-text-primary">Variant Explorer</h1>
-              <p className="mt-2 text-rg-text-secondary">{realTotal > 0 ? <><span className="font-bold text-rg-text-primary">{realTotal.toLocaleString()}</span> variants · ClinVar · Ensembl · GTEx · gnomAD</> : 'Your annotated variants from 5 real databases'}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="ghost" size="sm" onClick={() => fetchReal(realPage, searchQuery)} icon={<RefreshCw size={13} className={realLoading ? 'animate-spin' : ''} />}>Refresh</Button>
-              <Button variant="secondary" size="sm" onClick={() => handleExport('csv')} disabled={exporting || realVariants.length === 0} icon={<Download size={13} />}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
-              <Button variant="ghost" size="sm" onClick={() => handleExport('json')} disabled={exporting || realVariants.length === 0} icon={<Download size={13} />}>JSON</Button>
-            </div>
-          </div>
-        </motion.div>
-        <motion.div variants={stagger.item}>
-          <Input placeholder="Search by rsID, gene, chromosome, significance…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} icon={<Search size={16} />}
-            iconRight={searchQuery ? <button onClick={() => setSearchQuery('')} className="text-rg-text-muted hover:text-rg-text-primary cursor-pointer"><X size={14} /></button> : undefined} />
-        </motion.div>
-        {realError && (
-          <motion.div variants={stagger.item}>
-            <div className="rounded-xl border border-red-500/30 bg-red-500/08 px-5 py-4 text-sm text-red-400 flex items-center gap-3">⚠️ {realError}<button onClick={() => fetchReal(1, searchQuery)} className="underline cursor-pointer text-red-300 ml-2">Retry</button></div>
-          </motion.div>
-        )}
-        <motion.div variants={stagger.item}>
-          {realLoading ? (<GlassCard padding="xl"><TableSkeleton rows={8} /></GlassCard>) : realVariants.length === 0 ? (
-            <GlassCard padding="xl" hover={false} animate={false}><div className="text-center py-16"><div className="text-4xl mb-4">🔬</div><h3 className="text-lg font-semibold text-rg-text-primary mb-2">No variants found</h3><p className="text-sm text-rg-text-secondary">Try a different search term.</p></div></GlassCard>
-          ) : (
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: 700 }}>
-                <div className="grid items-center px-5 py-2 border-b border-rg-border/50 mb-2 text-[10px] uppercase tracking-wider font-semibold text-rg-text-muted" style={{ gridTemplateColumns: 'minmax(130px,1fr) minmax(100px,0.8fr) 120px 90px 90px 70px 36px', gap: 12 }}>
-                  <span>Variant / Gene</span><span>Tissue / Condition</span><span>Element Type</span><span>Impact</span><span>Significance</span><span className="text-right">Score</span><span />
-                </div>
-                <div className="space-y-2">{realVariants.map((v, i) => <RealVariantRow key={`${v.rsid}-${i}`} v={v} index={i} />)}</div>
-                {realTotalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-rg-border/30">
-                    <p className="text-xs text-rg-text-muted">Page {realPage} of {realTotalPages} · {realTotal.toLocaleString()} total</p>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" disabled={realPage <= 1} onClick={() => fetchReal(realPage - 1, searchQuery)}>← Prev</Button>
-                      <Button variant="ghost" size="sm" disabled={realPage >= realTotalPages} onClick={() => fetchReal(realPage + 1, searchQuery)}>Next →</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </motion.div>
-    );
-  }
-
-  // ── Demo mode (unchanged) ─────────────────────────────────────────────────
   return (
     <motion.div variants={stagger.container} initial="initial" animate="animate" style={{ display: 'flex', flexDirection: 'column', gap: 40, width: '100%' }}>
       <motion.div variants={stagger.item}>
-        <HeroSection liveBookmarkCount={bookmarks.size} filteredCount={filteredVariants.length} showBookmarkedOnly={showBookmarkedOnly} setShowBookmarkedOnly={setShowBookmarkedOnly} showFilters={showFilters} setShowFilters={setShowFilters} activeFilterCount={activeFilterCount} />
+        <HeroSection
+          variants={filteredVariants}
+          liveBookmarkCount={bookmarks.size}
+          showBookmarkedOnly={showBookmarkedOnly}
+          setShowBookmarkedOnly={setShowBookmarkedOnly}
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          activeFilterCount={activeFilterCount}
+          exporting={exporting}
+          onExport={handleExport}
+        />
       </motion.div>
       <motion.div variants={stagger.item}>
         <Input placeholder="Search by rsID, gene, chromosome, tissue, transcription factor, or disease..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} icon={<Search size={18} />}

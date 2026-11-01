@@ -639,6 +639,7 @@ export default function GenomeExplorerPage() {
               <fog attach="fog" args={['#050810', viewMode === 'nucleus' ? 9 : 6, viewMode === 'nucleus' ? 20 : 14]} />
               {viewMode === 'nucleus' ? (
                 <NuclearTerritoryScene
+                  chromosomes={chromosomes}
                   onSelectChromosome={handleSelectChromosome}
                   onHoverChange={setNucleusHover}
                 />

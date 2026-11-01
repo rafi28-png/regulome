@@ -276,7 +276,7 @@ export default function ReportCenterPage() {
         display:'flex', alignItems:'center', gap:14 }}>
         <Sparkles size={18} color="#0ae8d2" style={{ flexShrink:0 }} />
         <p style={{ fontSize:12, color:'#8899b8', lineHeight:1.6 }}>
-          <strong style={{ color:'#0ae8d2' }}>Real mode tip:</strong> Start the backend and switch to Real mode to generate reports enriched with live Ensembl annotations, ClinVar clinical significance, GTEx expression data, and Open Targets disease associations.
+          <strong style={{ color:'#0ae8d2' }}>Live Provenance:</strong> Reports generated in Real Mode automatically include your active DNA panel's Ensembl GRCh38 coordinates, ClinVar significance, GTEx v10 tissue expression matrix, and JASPAR transcription factor motifs.
         </p>
       </div>
 

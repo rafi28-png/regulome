@@ -101,9 +101,9 @@ export default function HotspotAtlasPage() {
         <div style={{position:'relative',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
           {[
             {label:'Total Variants',value:variantExplorerData.length,color:'#0ae8d2'},
-            {label:'Chromosomes Mapped',value:CHR_ORDER.length,color:'#8b5cf6'},
+            {label:'Chromosomes Mapped',value:chrData.filter(c=>c.count>0).length,color:'#8b5cf6'},
             {label:'Hotspot Genes',value:geneHotspots.length,color:'#f59e0b'},
-            {label:'Peak Score',value:Math.max(...variantExplorerData.map(v=>v.priorityScore)),color:'#10b981'},
+            {label:'Peak Score',value:Math.max(0,...variantExplorerData.map(v=>v.priorityScore)),color:'#10b981'},
           ].map((s,i)=>(
             <motion.div key={s.label} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}}
               transition={{delay:0.1+i*0.06,duration:0.4,ease}}

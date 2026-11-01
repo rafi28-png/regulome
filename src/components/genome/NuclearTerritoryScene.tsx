@@ -2,7 +2,7 @@ import { useRef, useMemo, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Float, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
-import { chromosomes, type ChromosomeInfo } from '@/data/genomeExplorerData';
+import { chromosomes as defaultChromosomes, type ChromosomeInfo } from '@/data/genomeExplorerData';
 
 /* ================================================================
    ReguloMe — Nuclear Territory View  (GOD-MODE v3 — Stable)
@@ -240,13 +240,14 @@ function ChromosomeTerritoryBlob({ chr, isHovered, isSelected, onHover, onClick,
 }
 
 /* ── Chromatin Interaction Arcs ─────────────────────────────────── */
+const CHR_INTERACTION_ARCS: [string,string,string][] = [
+  ['chr1','chr19','#0ae8d2'],['chr6','chr17','#8b5cf6'],
+  ['chr11','chr22','#10b981'],['chr2','chr7','#3b82f6'],
+  ['chr17','chr19','#f59e0b'],['chrX','chr1','#ec4899'],
+];
+
 function ChromatinInteractionArcs() {
-  const ints: [string,string,string][] = [
-    ['chr1','chr19','#0ae8d2'],['chr6','chr17','#8b5cf6'],
-    ['chr11','chr22','#10b981'],['chr2','chr7','#3b82f6'],
-    ['chr17','chr19','#f59e0b'],['chrX','chr1','#ec4899'],
-  ];
-  const lines = useMemo(()=> ints.map(([a,b,color])=>{
+  const lines = useMemo(()=> CHR_INTERACTION_ARCS.map(([a,b,color])=>{
     const fr=TERRITORY_POSITIONS[a]??[0,0,0],to=TERRITORY_POSITIONS[b]??[0,0,0];
     const mid=[(fr[0]+to[0])*.2,(fr[1]+to[1])*.2,(fr[2]+to[2])*.2];
     const pts:THREE.Vector3[]=[];
@@ -298,9 +299,11 @@ function Nucleolus(){
 
 /* ── Main Exported Scene (pure 3D — no HTML) ────────────────────── */
 export default function NuclearTerritoryScene({
+  chromosomes = defaultChromosomes,
   onSelectChromosome,
   onHoverChange,
 }: {
+  chromosomes?: ChromosomeInfo[];
   onSelectChromosome: (chromosomeId: string) => void;
   onHoverChange: (info: NuclearHoverInfo) => void;
 }) {

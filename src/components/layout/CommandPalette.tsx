@@ -13,9 +13,14 @@ import {
   FlaskConical,
   Network,
   Target,
+  UploadCloud,
+  Atom,
+  MapPin,
+  FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 interface Command {
   id: string;
@@ -29,6 +34,7 @@ interface Command {
 
 export default function CommandPalette() {
   const { commandPaletteOpen, setCommandPaletteOpen } = useApp();
+  const { profile } = useRegulatoryProfile();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,116 +66,158 @@ export default function CommandPalette() {
     return () => window.removeEventListener('keydown', handler);
   }, [close, commandPaletteOpen, setCommandPaletteOpen]);
 
-  const allCommands = useMemo<Command[]>(() => [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      subtitle: 'Overview and key metrics',
-      icon: <Activity size={16} />,
-      action: () => { navigate('/app/dashboard'); close(); },
-      category: 'Pages',
-      keywords: ['dashboard', 'home', 'overview', 'metrics'],
-    },
-    {
-      id: 'variants',
-      label: 'Variant Explorer',
-      subtitle: 'Browse regulatory variants',
-      icon: <Dna size={16} />,
-      action: () => { navigate('/app/variants'); close(); },
-      category: 'Pages',
-      keywords: ['variant', 'explorer', 'snp', 'regulatory', 'genome'],
-    },
-    {
-      id: 'expression',
-      label: 'Gene Expression Landscape',
-      subtitle: 'Expression patterns across tissues',
-      icon: <BarChart3 size={16} />,
-      action: () => { navigate('/app/expression'); close(); },
-      category: 'Pages',
-      keywords: ['gene', 'expression', 'rna', 'tissue', 'landscape'],
-    },
-    {
-      id: 'evidence',
-      label: 'Evidence Studio',
-      subtitle: 'Confidence levels and sources',
-      icon: <BookOpen size={16} />,
-      action: () => { navigate('/app/evidence'); close(); },
-      category: 'Pages',
-      keywords: ['evidence', 'studio', 'confidence', 'publication', 'source'],
-    },
-    {
-      id: 'diseases',
-      label: 'Disease & Systems Hub',
-      subtitle: 'Cross-domain disease signals',
-      icon: <HeartPulse size={16} />,
-      action: () => { navigate('/app/diseases'); close(); },
-      category: 'Pages',
-      keywords: ['disease', 'hub', 'system', 'biology', 'pathway'],
-    },
-    {
-      id: 'epigenetic',
-      label: 'Epigenetic Clock',
-      subtitle: 'Regulatory age tracking',
-      icon: <Clock size={16} />,
-      action: () => { navigate('/app/epigenetic-clock'); close(); },
-      category: 'Pages',
-      keywords: ['epigenetic', 'clock', 'age', 'methylation'],
-    },
-    {
-      id: 'simulator',
-      label: 'Regulatory Twin Simulator',
-      subtitle: 'What-if scenario modeling',
-      icon: <FlaskConical size={16} />,
-      action: () => { navigate('/app/simulator'); close(); },
-      category: 'Pages',
-      keywords: ['simulator', 'twin', 'scenario', 'model'],
-    },
-    {
-      id: 'network',
-      label: 'Regulatory Network Atlas',
-      subtitle: 'Network visualization',
-      icon: <Network size={16} />,
-      action: () => { navigate('/app/network'); close(); },
-      category: 'Pages',
-      keywords: ['network', 'atlas', 'graph', 'regulatory'],
-    },
-    {
-      id: 'optimization',
-      label: 'Self-Optimization Studio',
-      subtitle: 'Lifestyle and regulatory tuning',
-      icon: <Target size={16} />,
-      action: () => { navigate('/app/optimization'); close(); },
-      category: 'Pages',
-      keywords: ['optimization', 'lifestyle', 'tune', 'improve'],
-    },
-    {
-      id: 'rs1800795',
-      label: 'rs1800795',
-      subtitle: 'IL-6 · Immune · Promoter · Gain',
-      icon: <Dna size={16} style={{ color: '#0ae8d2' }} />,
-      action: () => { navigate('/app/variants'); close(); },
-      category: 'Variants',
-      keywords: ['rs1800795', 'il-6', 'il6', 'immune', 'promoter'],
-    },
-    {
-      id: 'rs12740374',
-      label: 'rs12740374',
-      subtitle: 'SORT1 · Liver · Enhancer · Loss',
-      icon: <Dna size={16} style={{ color: '#8b5cf6' }} />,
-      action: () => { navigate('/app/variants'); close(); },
-      category: 'Variants',
-      keywords: ['rs12740374', 'sort1', 'liver', 'enhancer'],
-    },
-    {
-      id: 'rs6983267',
-      label: 'rs6983267',
-      subtitle: 'MYC · Intestine · Enhancer · Gain',
-      icon: <Dna size={16} style={{ color: '#0ae8d2' }} />,
-      action: () => { navigate('/app/variants'); close(); },
-      category: 'Variants',
-      keywords: ['rs6983267', 'myc', 'intestine', 'cancer'],
-    },
-  ], [close, navigate]);
+  const allCommands = useMemo<Command[]>(() => {
+    const pages: Command[] = [
+      {
+        id: 'data-studio',
+        label: 'Data Studio',
+        subtitle: 'Load sample genomes, pick variants, or upload VCF / 23andMe files',
+        icon: <UploadCloud size={16} />,
+        action: () => { navigate('/app/data-studio'); close(); },
+        category: 'Pages',
+        keywords: ['data', 'studio', 'upload', 'vcf', '23andme', 'sample', 'genome'],
+      },
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        subtitle: 'Overview and key regulatory metrics',
+        icon: <Activity size={16} />,
+        action: () => { navigate('/app/dashboard'); close(); },
+        category: 'Pages',
+        keywords: ['dashboard', 'home', 'overview', 'metrics'],
+      },
+      {
+        id: 'variants',
+        label: 'Variant Explorer',
+        subtitle: `Browse ${profile.variants.length} active regulatory variants`,
+        icon: <Dna size={16} />,
+        action: () => { navigate('/app/variants'); close(); },
+        category: 'Pages',
+        keywords: ['variant', 'explorer', 'snp', 'regulatory', 'genome'],
+      },
+      {
+        id: 'expression',
+        label: 'Gene Expression Landscape',
+        subtitle: 'Expression patterns across 10 tissues',
+        icon: <BarChart3 size={16} />,
+        action: () => { navigate('/app/expression'); close(); },
+        category: 'Pages',
+        keywords: ['gene', 'expression', 'rna', 'tissue', 'landscape'],
+      },
+      {
+        id: 'genome-3d',
+        label: '3D Genome Explorer',
+        subtitle: 'Interactive 3D nuclear territory and TAD chromatin loops',
+        icon: <Atom size={16} />,
+        action: () => { navigate('/app/genome-3d'); close(); },
+        category: 'Pages',
+        keywords: ['3d', 'genome', 'tad', 'chromosome', 'nucleus', 'chromatin'],
+      },
+      {
+        id: 'network',
+        label: 'Regulatory Network Atlas',
+        subtitle: 'Force-directed Variant → TF → Gene → Pathway → Disease graph',
+        icon: <Network size={16} />,
+        action: () => { navigate('/app/network'); close(); },
+        category: 'Pages',
+        keywords: ['network', 'atlas', 'graph', 'regulatory'],
+      },
+      {
+        id: 'hotspots',
+        label: 'Hotspot Atlas',
+        subtitle: 'Chromosomal and tissue regulatory variant density',
+        icon: <MapPin size={16} />,
+        action: () => { navigate('/app/hotspots'); close(); },
+        category: 'Pages',
+        keywords: ['hotspot', 'atlas', 'density', 'chromosome'],
+      },
+      {
+        id: 'diseases',
+        label: 'Disease & Systems Hub',
+        subtitle: 'Cross-domain disease burden and risk variants',
+        icon: <HeartPulse size={16} />,
+        action: () => { navigate('/app/diseases'); close(); },
+        category: 'Pages',
+        keywords: ['disease', 'hub', 'system', 'biology', 'pathway'],
+      },
+      {
+        id: 'epigenetic',
+        label: 'Epigenetic Clock',
+        subtitle: 'Biological vs chronological age across 5 clocks',
+        icon: <Clock size={16} />,
+        action: () => { navigate('/app/epigenetic-clock'); close(); },
+        category: 'Pages',
+        keywords: ['epigenetic', 'clock', 'age', 'methylation'],
+      },
+      {
+        id: 'optimization',
+        label: 'Self-Optimization Studio',
+        subtitle: 'Genotype-tailored lifestyle and supplement protocols',
+        icon: <Target size={16} />,
+        action: () => { navigate('/app/optimization'); close(); },
+        category: 'Pages',
+        keywords: ['optimization', 'lifestyle', 'tune', 'improve', 'protocol'],
+      },
+      {
+        id: 'simulator',
+        label: 'Regulatory Twin Simulator',
+        subtitle: 'What-if lifestyle intervention modeling',
+        icon: <FlaskConical size={16} />,
+        action: () => { navigate('/app/simulator'); close(); },
+        category: 'Pages',
+        keywords: ['simulator', 'twin', 'scenario', 'model'],
+      },
+      {
+        id: 'workbench',
+        label: 'Research Workbench',
+        subtitle: 'Live Ensembl, ClinVar, GTEx & Open Targets lookup',
+        icon: <Search size={16} />,
+        action: () => { navigate('/app/workbench'); close(); },
+        category: 'Pages',
+        keywords: ['workbench', 'research', 'ensembl', 'clinvar', 'gtex', 'lookup'],
+      },
+      {
+        id: 'evidence',
+        label: 'Evidence Studio',
+        subtitle: 'Provenance, confidence levels, and literature sources',
+        icon: <BookOpen size={16} />,
+        action: () => { navigate('/app/evidence'); close(); },
+        category: 'Pages',
+        keywords: ['evidence', 'studio', 'confidence', 'publication', 'source'],
+      },
+      {
+        id: 'reports',
+        label: 'Report Center',
+        subtitle: 'Export JSON and text genomic reports',
+        icon: <FileText size={16} />,
+        action: () => { navigate('/app/reports'); close(); },
+        category: 'Pages',
+        keywords: ['report', 'export', 'download', 'json'],
+      },
+    ];
+
+    const variantCmds: Command[] = profile.variants.slice(0, 16).map((v) => ({
+      id: `var-${v.id}`,
+      label: `${v.rsId} (${v.gene})`,
+      subtitle: `${v.chromosome}:${v.position.toLocaleString()} · ${v.tissues[0] || 'Regulatory'} · ${v.elementType} · ${v.effect.toUpperCase()}`,
+      icon: <Dna size={16} style={{ color: v.effect === 'gain' ? '#0ae8d2' : '#8b5cf6' }} />,
+      action: () => { navigate(`/app/variants/${v.id}`); close(); },
+      category: 'Active Variants',
+      keywords: [v.rsId.toLowerCase(), v.gene.toLowerCase(), v.chromosome.toLowerCase(), ...v.tissues.map(t => t.toLowerCase())],
+    }));
+
+    const geneCmds: Command[] = profile.expression.geneSummaries.slice(0, 12).map((g) => ({
+      id: `gene-${g.gene}`,
+      label: `${g.gene} — ${g.fullName}`,
+      subtitle: `Chr ${g.chromosome} · Top tissue: ${g.topTissue} · Max deviation: ${g.maxDeviation > 0 ? '+' : ''}${g.maxDeviation}%`,
+      icon: <BarChart3 size={16} style={{ color: '#a78bfa' }} />,
+      action: () => { navigate(`/app/workbench?q=${encodeURIComponent(g.gene)}`); close(); },
+      category: 'Genes (Live Workbench)',
+      keywords: [g.gene.toLowerCase(), g.fullName.toLowerCase(), g.topTissue.toLowerCase()],
+    }));
+
+    return [...pages, ...variantCmds, ...geneCmds];
+  }, [close, navigate, profile.variants, profile.expression.geneSummaries]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return allCommands;

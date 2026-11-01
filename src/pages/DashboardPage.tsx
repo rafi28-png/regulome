@@ -137,7 +137,7 @@ function AgeTrendChart() {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(56, 78, 122, 0.15)" />
             <XAxis dataKey="month" tick={{ fill: '#6b7d9c', fontSize: 11 }} axisLine={{ stroke: 'rgba(56, 78, 122, 0.2)' }} tickLine={false} />
-            <YAxis domain={[37, 43]} tick={{ fill: '#6b7d9c', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis domain={['auto', 'auto']} tick={{ fill: '#6b7d9c', fontSize: 11 }} axisLine={false} tickLine={false} />
             <RechartsTooltip contentStyle={{ background: '#151c2e', border: '1px solid rgba(56, 78, 122, 0.3)', borderRadius: 8, fontSize: 12, color: '#e8edf5' }} />
             <Area type="monotone" dataKey="epigeneticAge" stroke="#0ae8d2" strokeWidth={2} fill="url(#gradTeal)" name="Epigenetic Age" />
             <Area type="monotone" dataKey="regulatoryAge" stroke="#8b5cf6" strokeWidth={2} fill="url(#gradPurple)" name="Regulatory Age" />
