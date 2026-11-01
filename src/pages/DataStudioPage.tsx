@@ -9,14 +9,16 @@ import {
   Terminal,
   AlertCircle,
   Dna,
-  Lock,
+  Shield,
   CheckCircle2,
   XCircle,
   Download,
   Sparkles,
   Sliders,
-  HelpCircle,
   Trash2,
+  ArrowRight,
+  HardDrive,
+  Plus,
 } from 'lucide-react';
 import { Button, GlassCard } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
@@ -30,9 +32,14 @@ import {
   buildVcfFromRsIds,
   type RawGenomicVariant,
 } from '@/lib/regulatoryEngine';
-import { saveUploadedGenomicVariants } from '@/hooks/useRegulatoryProfile';
+import { saveUploadedGenomicVariants, useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
+
+/* =============================================
+   ReguloMe — Data Studio & Genome Vault (GOD-MODE)
+   ============================================= */
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const ease = [0.22, 0.61, 0.36, 1] as [number, number, number, number];
 
 // ── Pipeline display steps ──
 const DISPLAY_STEPS = [
@@ -52,7 +59,7 @@ interface LogLine {
   bold?: boolean;
 }
 
-type StudioTab = 'builder' | 'presets' | 'upload';
+type StudioTab = 'presets' | 'builder' | 'upload';
 
 const CURATED_BUILDER_VARIANTS = [
   { rsId: 'rs2802292', label: 'FOXO3 Longevity Enhancer', tag: 'Protective · Longevity', color: '#10b981' },
@@ -74,6 +81,7 @@ const CURATED_BUILDER_VARIANTS = [
 export default function DataStudioPage() {
   const navigate = useNavigate();
   const { mode, setMode, setHasUploadedData, hasUploadedData, clearUploadedData } = useApp();
+  const { profile } = useRegulatoryProfile();
 
   const [activeTab, setActiveTab] = useState<StudioTab>('presets');
   const [isDragging, setIsDragging] = useState(false);
@@ -98,7 +106,6 @@ export default function DataStudioPage() {
   const logsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll logs
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
@@ -107,7 +114,6 @@ export default function DataStudioPage() {
     setLogs((prev) => [...prev, { text, color, bold }]);
   }, []);
 
-  // Immediately inspect any selected/dropped file and reject invalid files!
   const inspectAndSelectFile = async (candidate: File) => {
     setError(null);
     try {
@@ -117,7 +123,7 @@ export default function DataStudioPage() {
         setFile(null);
         setPreviewVariants([]);
         setError(
-          `Invalid genome file: "${candidate.name}" contains 0 valid DNA variants. A random text file (such as a name or notes) cannot be analyzed. Please upload a real VCF (.vcf) or 23andMe/AncestryDNA (.txt) file containing chromosome coordinates and rsIDs, or use Tab 1 / Tab 2 above to download or build a real variant panel.`
+          `Invalid genome file: "${candidate.name}" contains 0 valid DNA variants. Please upload a real VCF (.vcf) or 23andMe/AncestryDNA (.txt) file containing chromosome coordinates and rsIDs, or select a curated genome panel.`
         );
         return;
       }
@@ -188,7 +194,6 @@ export default function DataStudioPage() {
     const rawText = await targetFile.text();
     const parsedClientVariants = parseGenomicFileContent(rawText);
 
-    // STRICT VALIDATION: Never fall back to sample data if the file has 0 valid variants
     if (parsedClientVariants.length === 0) {
       setError(
         `Rejected "${targetFile.name}": 0 valid genetic variants found. Please provide a valid VCF or 23andMe/AncestryDNA file with real rsIDs and allele genotypes.`
@@ -209,7 +214,6 @@ export default function DataStudioPage() {
     addLog('', '#8899b8');
 
     try {
-      // 1. Optional local FastAPI upload if running
       const backendPromise = (async () => {
         if (!token) return null;
         try {
@@ -227,7 +231,6 @@ export default function DataStudioPage() {
         return null;
       })();
 
-      // 2. Run live CORS annotation on the exact parsed variants from the user's file
       const liveAnnotationPromise = annotateVariantsLive(parsedClientVariants);
 
       for (let i = 0; i < DISPLAY_STEPS.length; i++) {
@@ -311,14 +314,14 @@ export default function DataStudioPage() {
 
   if (mode === 'demo') {
     return (
-      <div className="flex h-full min-h-[60vh] flex-col items-center justify-center p-8">
+      <div style={{ display: 'flex', minHeight: '60vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <GlassCard padding="xl" className="max-w-md text-center">
-          <AlertCircle size={48} className="mx-auto text-rg-teal-400 mb-6" />
-          <h2 className="text-2xl font-bold text-rg-text-primary mb-3">Demo Mode Active</h2>
-          <p className="text-rg-text-secondary leading-relaxed mb-8">
-            The Data Studio is for analyzing real genomic variants. Switch to Real Mode to build a custom variant panel, download sample VCF/23andMe files, or upload your own DNA file.
+          <AlertCircle size={48} className="mx-auto text-rg-teal-400" style={{ marginBottom: 20 }} />
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e8edf5', marginBottom: 10 }}>Demo Mode Active</h2>
+          <p style={{ fontSize: 14, color: '#8899b8', lineHeight: 1.65, marginBottom: 28 }}>
+            Data Studio manages your real genomic profile storage and live variant synthesis. Switch to Real Mode to load curated DNA files, synthesize custom loci panels, or upload your own VCF / 23andMe file.
           </p>
-          <div className="flex justify-center gap-3">
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
             <Button variant="secondary" onClick={() => navigate('/app/dashboard')}>
               Back to Dashboard
             </Button>
@@ -331,305 +334,888 @@ export default function DataStudioPage() {
     );
   }
 
+  const activeVariantsCount = hasUploadedData ? profile.variants.length : 0;
+  const activeGenesCount = hasUploadedData ? profile.expression.geneSummaries.length : 0;
+  const activeFilename = hasUploadedData ? (profile.meta.filename || 'Active Genome Panel') : 'No Panel Loaded';
+  const activeRiskScore = hasUploadedData ? `${profile.dashboard.stats.riskScore}/100` : '—';
+
+  const heroStats = [
+    { label: 'Storage Status', value: hasUploadedData ? 'Active' : 'Empty', sub: activeFilename, color: hasUploadedData ? '#10b981' : '#f59e0b' },
+    { label: 'Stored Variants', value: activeVariantsCount.toLocaleString(), sub: 'verified loci', color: '#0ae8d2' },
+    { label: 'Target Genes', value: activeGenesCount.toLocaleString(), sub: 'mapped in cascade', color: '#8b5cf6' },
+    { label: 'Regulatory Burden', value: activeRiskScore, sub: hasUploadedData ? profile.dashboard.stats.riskLevel : 'awaiting input', color: '#ec4899' },
+  ];
+
+  const TABS: { id: StudioTab; label: string; sub: string; badge: string; color: string; icon: React.ReactNode }[] = [
+    {
+      id: 'presets',
+      label: 'Curated Genome Vault',
+      sub: 'Download 3 real VCF / 23andMe files or analyze in 1 click',
+      badge: 'RECOMMENDED',
+      color: '#0ae8d2',
+      icon: <Database size={18} />,
+    },
+    {
+      id: 'builder',
+      label: 'Variant & Gene Synthesizer',
+      sub: 'Toggle specific clinical loci or custom rsIDs without a file',
+      badge: 'INTERACTIVE',
+      color: '#8b5cf6',
+      icon: <Sliders size={18} />,
+    },
+    {
+      id: 'upload',
+      label: 'Local Genome Upload',
+      sub: 'Strict VCF v4.2 & 23andMe / AncestryDNA file parser',
+      badge: 'STRICT VALIDATOR',
+      color: '#10b981',
+      icon: <UploadCloud size={18} />,
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12">
-      {/* Header & Clear Reset Action */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-rg-purple-500/25 bg-rg-purple-500/10 px-3 py-1.5 text-xs font-semibold tracking-wide text-rg-purple-300">
-            <Database size={14} />
-            DATA STUDIO — REAL GENOMIC ENGINE
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 28, width: '100%' }}
+    >
+      {/* ── GOD-MODE HERO BANNER ── */}
+      <div
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          padding: '48px 44px',
+          borderRadius: 28,
+          background: 'linear-gradient(135deg, rgba(17,24,39,0.88), rgba(10,14,26,0.94))',
+          border: '1px solid rgba(10,232,210,0.18)',
+          backdropFilter: 'blur(28px)',
+        }}
+      >
+        <motion.div
+          animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute',
+            top: -60,
+            right: 90,
+            width: 240,
+            height: 240,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(10,232,210,0.09) 0%, transparent 65%)',
+            filter: 'blur(45px)',
+            pointerEvents: 'none',
+          }}
+        />
+        <motion.div
+          animate={{ y: [0, 14, 0] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+          style={{
+            position: 'absolute',
+            bottom: -40,
+            left: 70,
+            width: 200,
+            height: 200,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%)',
+            filter: 'blur(40px)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 24,
+            marginBottom: 34,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: 0.6, ease, delay: 0.1 }}
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 20,
+                flexShrink: 0,
+                background: 'linear-gradient(135deg, rgba(10,232,210,0.2), rgba(139,92,246,0.15))',
+                border: '1px solid rgba(10,232,210,0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 36px rgba(10,232,210,0.12)',
+              }}
+            >
+              <HardDrive size={28} color="#0ae8d2" />
+            </motion.div>
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '4px 12px',
+                    borderRadius: 999,
+                    background: 'rgba(139,92,246,0.12)',
+                    border: '1px solid rgba(139,92,246,0.32)',
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    color: '#a78bfa',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: '#0ae8d2',
+                      boxShadow: '0 0 8px rgba(10,232,210,0.7)',
+                    }}
+                  />
+                  GENOME STORAGE &amp; SYNTHESIS ENGINE
+                </span>
+              </div>
+              <h1
+                style={{
+                  fontSize: 42,
+                  fontWeight: 900,
+                  lineHeight: 1.05,
+                  letterSpacing: '-0.03em',
+                  background: 'linear-gradient(135deg, #e8edf5 25%, #0ae8d2 90%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Data Studio
+              </h1>
+              <p style={{ fontSize: 14, color: '#8899b8', marginTop: 6, maxWidth: 580 }}>
+                Load verified genome panels, synthesize custom regulatory loci, or upload VCF / 23andMe files with live ClinVar, Ensembl VEP &amp; GTEx annotation
+              </p>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-rg-text-primary">
-            Real Genome Analysis Studio
-          </h1>
-          <p className="mt-2 text-base text-rg-text-secondary max-w-2xl">
-            Don&apos;t have a `.vcf` or 23andMe `.txt` file on your computer? Choose any of the <strong className="text-rg-text-primary">3 ways below</strong> to test real genomic profiles, download valid DNA files to your PC, or build your own variant panel.
-          </p>
+
+          {/* Right Hero Action Buttons */}
+          {!isAnalyzing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {hasUploadedData && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate('/app/dashboard')}
+                    iconRight={<ArrowRight size={14} />}
+                  >
+                    Open Dashboard
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      clearUploadedData();
+                      setFile(null);
+                      setPreviewVariants([]);
+                      setError(null);
+                    }}
+                    icon={<Trash2 size={14} />}
+                  >
+                    Purge Storage
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {hasUploadedData && !isAnalyzing && (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              clearUploadedData();
-              setFile(null);
-              setPreviewVariants([]);
-              setError(null);
-            }}
-            icon={<Trash2 size={15} />}
-          >
-            Clear Current Genome Data
-          </Button>
-        )}
+        {/* 4-Column Hero Stats Strip */}
+        <div
+          style={{
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 14,
+          }}
+        >
+          {heroStats.map((s, i) => (
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 + i * 0.06, duration: 0.4, ease }}
+              style={{
+                padding: '18px 18px',
+                borderRadius: 16,
+                background: 'rgba(10,14,26,0.58)',
+                border: `1px solid ${s.color}22`,
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.13em',
+                  color: '#6b7d9c',
+                  marginBottom: 6,
+                }}
+              >
+                {s.label}
+              </p>
+              <p style={{ fontSize: 28, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</p>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: '#8899b8',
+                  marginTop: 5,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {s.sub}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
-      {/* Step-by-step Quick Guide Banner */}
-      {!isAnalyzing && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('presets'); setError(null); }}
-            className={`text-left rounded-xl border p-4 transition-all cursor-pointer ${
-              activeTab === 'presets'
-                ? 'border-rg-teal-500/50 bg-rg-teal-500/10 shadow-glow-teal'
-                : 'border-rg-border bg-rg-bg-card/60 hover:border-rg-border-light'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-rg-teal-400">Option 1 · Recommended</span>
-              <Download size={16} className="text-rg-teal-400" />
-            </div>
-            <div className="text-sm font-bold text-rg-text-primary">Download or 1-Click Load DNA Files</div>
-            <p className="mt-1 text-xs text-rg-text-secondary">
-              Download 3 real `.vcf` &amp; 23andMe `.txt` files to your PC or analyze them in 1 click.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('builder'); setError(null); }}
-            className={`text-left rounded-xl border p-4 transition-all cursor-pointer ${
-              activeTab === 'builder'
-                ? 'border-rg-purple-500/50 bg-rg-purple-500/10 shadow-glow-purple'
-                : 'border-rg-border bg-rg-bg-card/60 hover:border-rg-border-light'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-rg-purple-400">Option 2 · No File Needed</span>
-              <Sliders size={16} className="text-rg-purple-400" />
-            </div>
-            <div className="text-sm font-bold text-rg-text-primary">Interactive Variant &amp; Gene Picker</div>
-            <p className="mt-1 text-xs text-rg-text-secondary">
-              Pick exact genes (`FOXO3`, `IL-6`, `APOE`, `ACTN3`) or type any `rsID` and analyze live.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('upload'); setError(null); }}
-            className={`text-left rounded-xl border p-4 transition-all cursor-pointer ${
-              activeTab === 'upload'
-                ? 'border-emerald-500/50 bg-emerald-500/10'
-                : 'border-rg-border bg-rg-bg-card/60 hover:border-rg-border-light'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Option 3 · Strict Validator</span>
-              <UploadCloud size={16} className="text-emerald-400" />
-            </div>
-            <div className="text-sm font-bold text-rg-text-primary">Upload Your Own `.vcf` / `.txt`</div>
-            <p className="mt-1 text-xs text-rg-text-secondary">
-              Upload from your PC with strict variant verification (invalid `.txt` files are rejected).
-            </p>
-          </button>
-        </div>
-      )}
-
-      {/* Error Banner (Always visible when invalid file is uploaded) */}
-      {error && (
+      {/* ── ACTIVE STORAGE VAULT STRIP (When data is loaded) ── */}
+      {hasUploadedData && !isAnalyzing && (
         <motion.div
-          initial={{ opacity: 0, y: -6 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-5"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            padding: '18px 24px',
+            borderRadius: 20,
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(10,232,210,0.05))',
+            border: '1px solid rgba(16,185,129,0.25)',
+            backdropFilter: 'blur(16px)',
+          }}
         >
-          <XCircle className="mt-0.5 shrink-0 text-red-400" size={22} />
-          <div className="flex-1">
-            <h4 className="text-sm font-bold text-red-300">Genome Validation Error</h4>
-            <p className="mt-1 text-xs text-red-200/90 leading-relaxed">{error}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(16,185,129,0.15)',
+                border: '1px solid rgba(16,185,129,0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#10b981',
+                flexShrink: 0,
+              }}
+            >
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#e8edf5' }}>
+                  Active Genome Vault: <span style={{ color: '#0ae8d2', fontFamily: 'monospace' }}>{activeFilename}</span>
+                </span>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: 'rgba(16,185,129,0.16)',
+                    border: '1px solid rgba(16,185,129,0.35)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#10b981',
+                  }}
+                >
+                  {activeVariantsCount} Loci · {activeGenesCount} Genes
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: '#8899b8', marginTop: 3 }}>
+                Active genes:{' '}
+                <span style={{ color: '#c4b5fd', fontFamily: 'monospace' }}>
+                  {profile.expression.geneSummaries.map((g) => g.gene).join(', ') || 'None'}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                downloadTextFile(
+                  activeFilename.endsWith('.vcf') ? activeFilename : 'active_panel.vcf',
+                  buildVcfFromRsIds(profile.variants.map((v) => v.rsId))
+                )
+              }
+              icon={<Download size={13} />}
+            >
+              Export Active VCF
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              glow
+              onClick={() => navigate('/app/variants')}
+              iconRight={<ArrowRight size={13} />}
+            >
+              Inspect Variants
+            </Button>
           </div>
         </motion.div>
       )}
 
+      {/* ── VALIDATION ERROR BANNER ── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14,
+              padding: '18px 22px',
+              borderRadius: 18,
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.35)',
+              backdropFilter: 'blur(16px)',
+            }}
+          >
+            <XCircle size={20} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 800, color: '#fca5a5', marginBottom: 4 }}>
+                Genome Validation Alert
+              </p>
+              <p style={{ fontSize: 12, color: '#fecaca', lineHeight: 1.6 }}>{error}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODE SELECTOR CARDS ── */}
+      {!isAnalyzing && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 16,
+          }}
+        >
+          {TABS.map((t) => {
+            const isSelected = activeTab === t.id;
+            return (
+              <motion.button
+                key={t.id}
+                type="button"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => {
+                  setActiveTab(t.id);
+                  setError(null);
+                }}
+                style={{
+                  position: 'relative',
+                  overflow: 'hidden',
+                  textAlign: 'left',
+                  padding: '22px 24px',
+                  borderRadius: 22,
+                  cursor: 'pointer',
+                  background: isSelected
+                    ? `linear-gradient(135deg, ${t.color}16, rgba(17,24,39,0.92))`
+                    : 'linear-gradient(135deg, rgba(17,24,39,0.82), rgba(10,14,26,0.88))',
+                  border: isSelected ? `1px solid ${t.color}55` : '1px solid rgba(56,78,122,0.22)',
+                  boxShadow: isSelected ? `0 0 32px ${t.color}18` : 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      background: `${t.color}18`,
+                      border: `1px solid ${t.color}38`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: t.color,
+                    }}
+                  >
+                    {t.icon}
+                  </div>
+                  <span
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: 999,
+                      background: `${t.color}16`,
+                      border: `1px solid ${t.color}35`,
+                      fontSize: 9,
+                      fontWeight: 800,
+                      letterSpacing: '0.12em',
+                      color: t.color,
+                    }}
+                  >
+                    {t.badge}
+                  </span>
+                </div>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#e8edf5', marginBottom: 4 }}>
+                  {t.label}
+                </h3>
+                <p style={{ fontSize: 12, color: '#8899b8', lineHeight: 1.5 }}>{t.sub}</p>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── MAIN WORKSPACE CONTENT ── */}
       {!isAnalyzing ? (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          {/* ── TAB 1: DOWNLOAD OR 1-CLICK LOAD REAL GENOME FILES ── */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        >
+          {/* ════════════════════════════════════════════════════════════════
+              TAB 1: CURATED GENOME VAULT (3 VERIFIED DNA FILES)
+             ════════════════════════════════════════════════════════════════ */}
           {activeTab === 'presets' && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-rg-border bg-rg-bg-card/70 p-5">
-                <h2 className="text-lg font-bold text-rg-text-primary mb-1">
-                  3 Verified Real Genome Files (Download to PC or 1-Click Analyze)
-                </h2>
-                <p className="text-xs text-rg-text-secondary mb-5">
-                  Each panel contains completely different genetic variants and produces a completely different risk profile across all 14 pages. You can <strong className="text-rg-text-primary">Download</strong> any file to your computer to see how a real `.vcf` or 23andMe `.txt` file is formatted, then upload it in Option 3 — or click <strong className="text-rg-text-primary">1-Click Analyze</strong> right now.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {SAMPLE_GENOME_PRESETS.map((preset) => {
-                    const presetColor =
-                      preset.id === 'longevity-panel'
-                        ? '#10b981'
-                        : preset.id === 'neuro-immune-23andme'
-                          ? '#f59e0b'
-                          : '#8b5cf6';
-                    return (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                gap: 20,
+              }}
+            >
+              {SAMPLE_GENOME_PRESETS.map((preset, idx) => {
+                const presetColor =
+                  preset.id === 'longevity-panel'
+                    ? '#10b981'
+                    : preset.id === 'neuro-immune-23andme'
+                      ? '#f59e0b'
+                      : '#8b5cf6';
+                return (
+                  <motion.div
+                    key={preset.id}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.07, duration: 0.4, ease }}
+                    whileHover={{ y: -3 }}
+                    style={{
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      padding: '28px 26px',
+                      borderRadius: 24,
+                      background: 'linear-gradient(135deg, rgba(17,24,39,0.92), rgba(10,14,26,0.88))',
+                      border: `1px solid ${presetColor}28`,
+                      backdropFilter: 'blur(20px)',
+                      boxShadow: `0 0 40px ${presetColor}08`,
+                    }}
+                  >
+                    {/* Subtle corner radial glow */}
                     <div
-                      key={preset.id}
-                      className="flex flex-col justify-between rounded-xl border border-rg-border bg-rg-bg-primary/70 p-5 hover:border-rg-border-light transition-all"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span
-                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                            style={{
-                              background: `${presetColor}18`,
-                              color: presetColor,
-                              border: `1px solid ${presetColor}40`,
-                            }}
-                          >
-                            <Dna size={11} />
-                            {preset.badge}
-                          </span>
-                          <span className="font-mono text-[11px] text-rg-text-muted">
-                            {preset.variantCount} loci
-                          </span>
-                        </div>
+                      style={{
+                        position: 'absolute',
+                        top: -40,
+                        right: -40,
+                        width: 150,
+                        height: 150,
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${presetColor}12, transparent 70%)`,
+                        filter: 'blur(28px)',
+                        pointerEvents: 'none',
+                      }}
+                    />
 
-                        <h3 className="text-base font-bold text-rg-text-primary mb-1.5">
-                          {preset.title}
-                        </h3>
-                        <p className="text-xs text-rg-text-secondary leading-relaxed mb-3">
-                          {preset.description}
-                        </p>
-                        <div className="rounded-lg border border-rg-border/60 bg-rg-bg-card/50 px-3 py-2 mb-4 font-mono text-[11px] text-rg-text-muted truncate">
-                          📄 {preset.filename}
-                        </div>
+                    <div style={{ position: 'relative' }}>
+                      {/* Top badge row */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 11px',
+                            borderRadius: 999,
+                            background: `${presetColor}16`,
+                            border: `1px solid ${presetColor}38`,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: '0.06em',
+                            color: presetColor,
+                          }}
+                        >
+                          <Dna size={12} />
+                          {preset.badge}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#8899b8',
+                            padding: '3px 9px',
+                            borderRadius: 8,
+                            background: 'rgba(10,14,26,0.6)',
+                            border: '1px solid rgba(56,78,122,0.2)',
+                          }}
+                        >
+                          {preset.variantCount} Loci
+                        </span>
                       </div>
 
-                      <div className="flex flex-col gap-2 pt-2 border-t border-rg-border/50">
-                        <Button
-                          variant="primary"
-                          glow
-                          onClick={() => runPresetAnalysis(preset.id)}
-                          iconRight={<Activity size={14} />}
+                      <h3
+                        style={{
+                          fontSize: 18,
+                          fontWeight: 800,
+                          color: '#e8edf5',
+                          letterSpacing: '-0.02em',
+                          marginBottom: 8,
+                        }}
+                      >
+                        {preset.title}
+                      </h3>
+
+                      <p
+                        style={{
+                          fontSize: 12.5,
+                          color: '#8899b8',
+                          lineHeight: 1.68,
+                          marginBottom: 18,
+                        }}
+                      >
+                        {preset.description}
+                      </p>
+
+                      {/* File chip */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '9px 12px',
+                          borderRadius: 12,
+                          background: 'rgba(10,14,26,0.65)',
+                          border: '1px solid rgba(56,78,122,0.22)',
+                          marginBottom: 20,
+                        }}
+                      >
+                        <FileText size={14} style={{ color: presetColor, flexShrink: 0 }} />
+                        <span
+                          style={{
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            color: '#c4b5fd',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
                         >
-                          ⚡ 1-Click Load &amp; Analyze
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => downloadTextFile(preset.filename, preset.content)}
-                          icon={<Download size={14} />}
-                        >
-                          Download {preset.filename.endsWith('.txt') ? '.txt' : '.vcf'} to PC
-                        </Button>
+                          {preset.filename}
+                        </span>
                       </div>
                     </div>
-                  );
-                  })}
-                </div>
-              </div>
+
+                    {/* Action buttons */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        paddingTop: 16,
+                        borderTop: '1px solid rgba(56,78,122,0.18)',
+                      }}
+                    >
+                      <Button
+                        variant="primary"
+                        glow
+                        onClick={() => runPresetAnalysis(preset.id)}
+                        iconRight={<Activity size={14} />}
+                      >
+                        Load &amp; Synthesize Profile
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => downloadTextFile(preset.filename, preset.content)}
+                        icon={<Download size={14} />}
+                      >
+                        Download {preset.filename.endsWith('.txt') ? '.txt' : '.vcf'} to Disk
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
 
-          {/* ── TAB 2: INTERACTIVE VARIANT & GENE BUILDER (NO FILE NEEDED) ── */}
+          {/* ════════════════════════════════════════════════════════════════
+              TAB 2: INTERACTIVE VARIANT & GENE SYNTHESIZER
+             ════════════════════════════════════════════════════════════════ */}
           {activeTab === 'builder' && (
-            <div className="rounded-xl border border-rg-border bg-rg-bg-card/70 p-6 space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              style={{
+                padding: '32px 30px',
+                borderRadius: 24,
+                background: 'linear-gradient(135deg, rgba(17,24,39,0.92), rgba(10,14,26,0.88))',
+                border: '1px solid rgba(139,92,246,0.22)',
+                backdropFilter: 'blur(20px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 24,
+              }}
+            >
+              {/* Header + Quick Presets */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                }}
+              >
                 <div>
-                  <h2 className="text-lg font-bold text-rg-text-primary">
-                    Interactive Variant &amp; Gene Builder ({selectedRsIds.length} Loci Selected)
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: '#e8edf5', letterSpacing: '-0.02em' }}>
+                    Interactive Variant &amp; Gene Synthesizer
                   </h2>
-                  <p className="text-xs text-rg-text-secondary mt-0.5">
-                    Click any real human variants below to toggle them on/off, or type any NCBI `rsID`. Your dashboard, disease risks, and network graph will be computed exclusively from the variants you pick!
+                  <p style={{ fontSize: 13, color: '#8899b8', marginTop: 4 }}>
+                    Toggle regulatory loci below or append custom NCBI dbSNP identifiers (`rsID`). All downstream scores, tissue heatmaps, and 3D chromosomes compute strictly from your selection.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRsIds(['rs2802292', 'rs8192678', 'rs1815739', 'rs7412', 'rs4988235'])}
-                    className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-                  >
-                    Preset: Longevity Only (0 Cardio Risk)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRsIds(['rs1800795', 'rs1800629', 'rs2476601'])}
-                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 cursor-pointer"
-                  >
-                    Preset: Immune/Cytokine Only
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRsIds([])}
-                    className="rounded-lg border border-rg-border bg-rg-bg-primary px-3 py-1.5 text-xs font-semibold text-rg-text-muted hover:text-rg-text-primary cursor-pointer"
-                  >
-                    Clear All
-                  </button>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[
+                    {
+                      label: 'Longevity (0 Cardio Risk)',
+                      color: '#10b981',
+                      ids: ['rs2802292', 'rs8192678', 'rs1815739', 'rs7412', 'rs4988235'],
+                    },
+                    {
+                      label: 'Cytokine / Immune',
+                      color: '#f59e0b',
+                      ids: ['rs1800795', 'rs1800629', 'rs1801133'],
+                    },
+                    {
+                      label: 'Cardiometabolic',
+                      color: '#ef4444',
+                      ids: ['rs12740374', 'rs429358', 'rs7903146', 'rs9939609'],
+                    },
+                    {
+                      label: 'Clear',
+                      color: '#6b7d9c',
+                      ids: [],
+                    },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setSelectedRsIds(p.ids)}
+                      style={{
+                        padding: '7px 13px',
+                        borderRadius: 10,
+                        background: `${p.color}14`,
+                        border: `1px solid ${p.color}38`,
+                        color: p.color,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Variant Chips Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {/* Variant Selection Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(255px, 1fr))',
+                  gap: 12,
+                }}
+              >
                 {CURATED_BUILDER_VARIANTS.map((item) => {
                   const isSelected = selectedRsIds.includes(item.rsId);
                   const cat = KNOWN_RSID_CATALOG[item.rsId];
                   return (
-                    <button
+                    <motion.button
                       key={item.rsId}
                       type="button"
+                      whileHover={{ y: -2 }}
                       onClick={() => toggleBuilderRsId(item.rsId)}
-                      className={`flex items-start justify-between gap-2 rounded-xl border p-3 text-left transition-all cursor-pointer ${
-                        isSelected
-                          ? 'border-rg-teal-400/60 bg-rg-teal-500/12 shadow-sm'
-                          : 'border-rg-border bg-rg-bg-primary/50 opacity-70 hover:opacity-100'
-                      }`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        padding: '15px 16px',
+                        borderRadius: 16,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        background: isSelected
+                          ? 'linear-gradient(135deg, rgba(10,232,210,0.12), rgba(139,92,246,0.08))'
+                          : 'rgba(10,14,26,0.55)',
+                        border: isSelected
+                          ? '1px solid rgba(10,232,210,0.48)'
+                          : '1px solid rgba(56,78,122,0.2)',
+                        boxShadow: isSelected ? '0 0 20px rgba(10,232,210,0.1)' : 'none',
+                        opacity: isSelected ? 1 : 0.78,
+                        transition: 'all 0.18s ease',
+                      }}
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-rg-text-primary">
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: isSelected ? '#0ae8d2' : '#e8edf5',
+                            }}
+                          >
                             {item.rsId}
                           </span>
                           <span
-                            className="rounded px-1.5 py-0.5 text-[10px] font-bold"
-                            style={{ background: `${item.color}20`, color: item.color }}
+                            style={{
+                              padding: '2px 7px',
+                              borderRadius: 6,
+                              background: `${item.color}20`,
+                              border: `1px solid ${item.color}38`,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: item.color,
+                            }}
                           >
                             {cat?.gene || 'LOCUS'}
                           </span>
                         </div>
-                        <div className="text-xs font-medium text-rg-text-secondary mt-1">
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#e8edf5', marginBottom: 4 }}>
                           {item.label}
-                        </div>
-                        <div className="text-[10px] text-rg-text-muted mt-0.5">
-                          {cat ? `${cat.chromosome}:${cat.position.toLocaleString()} (${cat.ref}>${cat.alt})` : item.tag}
-                        </div>
+                        </p>
+                        <p style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#6b7d9c' }}>
+                          {cat
+                            ? `${cat.chromosome}:${cat.position.toLocaleString()} · ${cat.ref}→${cat.alt}`
+                            : item.tag}
+                        </p>
                       </div>
+
                       <div
-                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${
-                          isSelected
-                            ? 'border-rg-teal-400 bg-rg-teal-400 text-slate-950'
-                            : 'border-rg-border bg-rg-bg-card text-transparent'
-                        }`}
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 7,
+                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: isSelected ? '#0ae8d2' : 'rgba(21,28,46,0.8)',
+                          border: isSelected ? '1px solid #0ae8d2' : '1px solid rgba(56,78,122,0.35)',
+                          color: isSelected ? '#0a0e1a' : 'transparent',
+                          fontSize: 12,
+                          fontWeight: 900,
+                        }}
                       >
                         ✓
                       </div>
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
 
-              {/* Custom rsID input */}
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rg-border/60">
+              {/* Custom rsID Input Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  paddingTop: 16,
+                  borderTop: '1px solid rgba(56,78,122,0.18)',
+                }}
+              >
                 <input
                   type="text"
                   value={customRsInput}
                   onChange={(e) => setCustomRsInput(e.target.value)}
-                  placeholder="Add any custom dbSNP rsIDs (e.g. rs1801282, rs1799983)..."
-                  className="flex-1 min-w-[240px] rounded-lg border border-rg-border bg-rg-bg-primary px-3.5 py-2 text-xs text-rg-text-primary placeholder:text-rg-text-muted focus:border-rg-teal-400 focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddCustomRsIds();
+                  }}
+                  placeholder="Enter custom dbSNP rsIDs separated by commas (e.g., rs1801282, rs1799983)..."
+                  style={{
+                    flex: 1,
+                    minWidth: 240,
+                    padding: '11px 16px',
+                    borderRadius: 12,
+                    background: 'rgba(10,14,26,0.75)',
+                    border: '1px solid rgba(56,78,122,0.32)',
+                    color: '#e8edf5',
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                  }}
                 />
-                <Button variant="secondary" onClick={handleAddCustomRsIds}>
-                  + Add Custom rsID
+                <Button variant="secondary" onClick={handleAddCustomRsIds} icon={<Plus size={14} />}>
+                  Append rsID
                 </Button>
               </div>
 
-              {/* Action Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-rg-purple-500/30 bg-rg-purple-500/08 p-4">
-                <div className="text-xs text-rg-text-secondary">
-                  Selected Loci:{' '}
-                  <span className="font-mono font-bold text-rg-text-primary">
+              {/* Action Footer */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                  padding: '18px 22px',
+                  borderRadius: 18,
+                  background: 'rgba(10,14,26,0.65)',
+                  border: '1px solid rgba(139,92,246,0.28)',
+                }}
+              >
+                <div style={{ fontSize: 12, color: '#8899b8' }}>
+                  Active Selection ({selectedRsIds.length}):{' '}
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0ae8d2' }}>
                     {selectedRsIds.length > 0 ? selectedRsIds.join(', ') : 'None selected'}
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   <Button
                     variant="secondary"
                     disabled={selectedRsIds.length === 0}
@@ -639,80 +1225,155 @@ export default function DataStudioPage() {
                         buildVcfFromRsIds(selectedRsIds)
                       )
                     }
-                    icon={<Download size={15} />}
+                    icon={<Download size={14} />}
                   >
-                    Download as `.vcf` File
+                    Export `.vcf`
                   </Button>
                   <Button
                     variant="primary"
                     glow
                     disabled={selectedRsIds.length === 0}
                     onClick={runBuilderAnalysis}
-                    iconRight={<Sparkles size={15} />}
+                    iconRight={<Sparkles size={14} />}
                   >
-                    🚀 Analyze {selectedRsIds.length} Selected Loci Live
+                    Synthesize {selectedRsIds.length} Selected Loci
                   </Button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ── TAB 3: UPLOAD YOUR OWN .VCF OR 23ANDME .TXT FILE ── */}
+          {/* ════════════════════════════════════════════════════════════════
+              TAB 3: LOCAL GENOME FILE UPLOAD (.VCF / 23ANDME .TXT)
+             ════════════════════════════════════════════════════════════════ */}
           {activeTab === 'upload' && (
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => !file && fileInputRef.current?.click()}
-                className={`
-                  relative overflow-hidden rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer
-                  ${isDragging ? 'border-rg-purple-400 bg-rg-purple-500/10' : file ? 'border-emerald-500/40 bg-emerald-500/05' : 'border-rg-border-light bg-rg-bg-card/50 hover:border-rg-purple-500/30 hover:bg-rg-bg-card/80'}
-                `}
-                style={{ padding: '44px 32px', textAlign: 'center' }}
+                style={{
+                  position: 'relative',
+                  overflow: 'hidden',
+                  padding: '52px 36px',
+                  borderRadius: 26,
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: isDragging
+                    ? 'linear-gradient(135deg, rgba(10,232,210,0.12), rgba(139,92,246,0.1))'
+                    : file
+                      ? 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(10,14,26,0.92))'
+                      : 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(10,14,26,0.92))',
+                  border: isDragging
+                    ? '2px dashed #0ae8d2'
+                    : file
+                      ? '2px dashed rgba(16,185,129,0.45)'
+                      : '2px dashed rgba(56,78,122,0.38)',
+                  backdropFilter: 'blur(20px)',
+                  transition: 'all 0.25s ease',
+                }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-rg-purple-500/5 to-transparent pointer-events-none" />
                 <input
                   ref={fileInputRef}
                   type="file"
-                  className="hidden"
+                  style={{ display: 'none' }}
                   onChange={handleFileSelect}
                   accept=".vcf,.txt,.tsv"
                 />
-                <div className="relative z-10 flex flex-col items-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rg-bg-primary shadow-elevated border border-rg-border">
+
+                <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: 68,
+                      height: 68,
+                      borderRadius: 22,
+                      marginBottom: 18,
+                      background: file
+                        ? 'rgba(16,185,129,0.15)'
+                        : 'linear-gradient(135deg, rgba(10,232,210,0.16), rgba(139,92,246,0.14))',
+                      border: file ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(10,232,210,0.28)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 0 32px rgba(10,232,210,0.1)',
+                    }}
+                  >
                     {file ? (
-                      <CheckCircle2 size={28} className="text-emerald-400" />
+                      <CheckCircle2 size={30} color="#10b981" />
                     ) : (
-                      <UploadCloud size={28} className="text-rg-text-secondary" />
+                      <UploadCloud size={30} color="#0ae8d2" />
                     )}
                   </div>
 
                   {file ? (
                     <>
-                      <h3 className="text-xl font-bold text-rg-text-primary mb-1">{file.name}</h3>
-                      <p className="text-xs text-emerald-400 font-semibold mb-4">
-                        ✅ Verified: {previewVariants.length} valid DNA variants parsed from file
+                      <h3 style={{ fontSize: 22, fontWeight: 800, color: '#e8edf5', marginBottom: 6 }}>
+                        {file.name}
+                      </h3>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#10b981', marginBottom: 22 }}>
+                        Verified · {previewVariants.length} valid genomic variants parsed
                       </p>
 
-                      {/* Preview table of parsed variants */}
-                      <div className="w-full max-w-xl rounded-xl border border-rg-border bg-rg-bg-primary/90 p-3 mb-5 text-left">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-rg-text-muted mb-2">
-                          Parsed Variant Preview (First {Math.min(5, previewVariants.length)} of {previewVariants.length})
-                        </div>
-                        <div className="space-y-1.5 font-mono text-xs">
+                      {/* Glassmorphic Parsed Variant Preview Table */}
+                      <div
+                        style={{
+                          width: '100%',
+                          maxWidth: 640,
+                          padding: '16px 20px',
+                          borderRadius: 16,
+                          background: 'rgba(10,14,26,0.78)',
+                          border: '1px solid rgba(56,78,122,0.25)',
+                          marginBottom: 24,
+                          textAlign: 'left',
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.12em',
+                            color: '#6b7d9c',
+                            marginBottom: 10,
+                          }}
+                        >
+                          Parsed Variant Preview ({Math.min(5, previewVariants.length)} of {previewVariants.length})
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {previewVariants.slice(0, 5).map((pv, i) => (
-                            <div key={i} className="flex items-center justify-between border-b border-rg-border/40 pb-1 last:border-0">
-                              <span className="font-bold text-rg-teal-400">{pv.rsId}</span>
-                              <span className="text-rg-text-secondary">{pv.chromosome}:{pv.position.toLocaleString()}</span>
-                              <span className="text-rg-purple-300">{pv.refAllele}→{pv.altAllele}</span>
-                              <span className="text-rg-text-muted">{pv.gene || KNOWN_RSID_CATALOG[pv.rsId]?.gene || 'Genomic Locus'}</span>
+                            <div
+                              key={i}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '110px 1fr 80px 110px',
+                                alignItems: 'center',
+                                gap: 10,
+                                paddingBottom: 6,
+                                borderBottom:
+                                  i < Math.min(5, previewVariants.length) - 1
+                                    ? '1px solid rgba(56,78,122,0.16)'
+                                    : 'none',
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                              }}
+                            >
+                              <span style={{ fontWeight: 800, color: '#0ae8d2' }}>{pv.rsId}</span>
+                              <span style={{ color: '#8899b8' }}>
+                                {pv.chromosome}:{pv.position.toLocaleString()}
+                              </span>
+                              <span style={{ color: '#c4b5fd' }}>
+                                {pv.refAllele}→{pv.altAllele}
+                              </span>
+                              <span style={{ color: '#10b981', textAlign: 'right' }}>
+                                {pv.gene || KNOWN_RSID_CATALOG[pv.rsId]?.gene || 'Locus'}
+                              </span>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="flex gap-3">
+                      <div style={{ display: 'flex', gap: 12 }}>
                         <Button
                           variant="secondary"
                           onClick={(e) => {
@@ -721,7 +1382,7 @@ export default function DataStudioPage() {
                             setPreviewVariants([]);
                           }}
                         >
-                          Remove File
+                          Clear Selection
                         </Button>
                         <Button
                           variant="primary"
@@ -730,21 +1391,31 @@ export default function DataStudioPage() {
                             e.stopPropagation();
                             void startAnalysis();
                           }}
-                          iconRight={<Activity size={16} />}
+                          iconRight={<Activity size={15} />}
                         >
-                          🚀 Start Real Analysis Pipeline ({previewVariants.length} Loci)
+                          Run 5-Layer Analysis ({previewVariants.length} Loci)
                         </Button>
                       </div>
                     </>
                   ) : (
                     <>
-                      <h3 className="text-xl font-bold text-rg-text-primary mb-2">
-                        Drop your `.vcf` or 23andMe `.txt` genome file here
+                      <h3 style={{ fontSize: 22, fontWeight: 800, color: '#e8edf5', marginBottom: 8 }}>
+                        Drop your `.vcf` or 23andMe `.txt` genome file
                       </h3>
-                      <p className="text-xs text-rg-text-secondary mb-6 max-w-lg mx-auto leading-relaxed">
-                        Strict Genome Verification is active: files must contain valid <strong className="text-rg-text-primary">VCF v4.2</strong> (`#CHROM POS ID REF ALT`) or <strong className="text-rg-text-primary">23andMe / AncestryDNA</strong> (`rsid chromosome position genotype`) rows. Non-genomic text files are automatically rejected.
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: '#8899b8',
+                          maxWidth: 520,
+                          lineHeight: 1.65,
+                          marginBottom: 24,
+                        }}
+                      >
+                        Strict coordinate &amp; allele verification is enforced. Supports standard{' '}
+                        <strong style={{ color: '#e8edf5' }}>VCF v4.2</strong> (`#CHROM POS ID REF ALT`) and{' '}
+                        <strong style={{ color: '#e8edf5' }}>23andMe / AncestryDNA</strong> raw genotype exports.
                       </p>
-                      <div className="flex flex-wrap items-center justify-center gap-3">
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}>
                         <Button
                           variant="primary"
                           glow
@@ -752,9 +1423,9 @@ export default function DataStudioPage() {
                             e.stopPropagation();
                             fileInputRef.current?.click();
                           }}
-                          icon={<FileText size={16} />}
+                          icon={<FileText size={15} />}
                         >
-                          Browse `.vcf` / `.txt` File from PC
+                          Select `.vcf` / `.txt` File
                         </Button>
                         <Button
                           variant="secondary"
@@ -763,7 +1434,7 @@ export default function DataStudioPage() {
                             setActiveTab('presets');
                           }}
                         >
-                          Don&apos;t have a file? Get Sample DNA Files →
+                          Browse Curated Genome Vault →
                         </Button>
                       </div>
                     </>
@@ -771,106 +1442,225 @@ export default function DataStudioPage() {
                 </div>
               </div>
 
-              {/* Format Reference Example */}
-              <div className="rounded-xl border border-rg-border bg-rg-bg-card/60 p-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-rg-text-primary mb-2">
-                  <HelpCircle size={15} className="text-rg-teal-400" />
-                  What does a valid DNA `.vcf` or 23andMe `.txt` file look like?
+              {/* Format Specification Reference Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '20px 22px',
+                    borderRadius: 20,
+                    background: 'rgba(17,24,39,0.78)',
+                    border: '1px solid rgba(10,232,210,0.18)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(10,232,210,0.12)',
+                        color: '#0ae8d2',
+                        fontSize: 10,
+                        fontWeight: 800,
+                      }}
+                    >
+                      VCF v4.2
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#e8edf5' }}>
+                      Standard Variant Call Format (`.vcf`)
+                    </span>
+                  </div>
+                  <pre
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      background: 'rgba(10,14,26,0.75)',
+                      border: '1px solid rgba(56,78,122,0.2)',
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: '#8899b8',
+                      overflowX: 'auto',
+                      lineHeight: 1.6,
+                    }}
+                  >
+{`#CHROM  POS        ID          REF  ALT
+chr6    108659993  rs2802292   T    G
+chr19   44908822   rs7412      C    T`}
+                  </pre>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-[11px] text-rg-text-secondary">
-                  <div className="rounded-lg bg-rg-bg-primary p-3 border border-rg-border/60">
-                    <div className="text-rg-teal-400 font-bold mb-1">VCF Format (.vcf):</div>
-                    <div>#CHROM  POS        ID          REF  ALT</div>
-                    <div>chr6    108659993  rs2802292   T    G</div>
-                    <div>chr19   44908822   rs7412      C    T</div>
+
+                <div
+                  style={{
+                    padding: '20px 22px',
+                    borderRadius: 20,
+                    background: 'rgba(17,24,39,0.78)',
+                    border: '1px solid rgba(139,92,246,0.18)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(139,92,246,0.15)',
+                        color: '#a78bfa',
+                        fontSize: 10,
+                        fontWeight: 800,
+                      }}
+                    >
+                      23andMe / Ancestry
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#e8edf5' }}>
+                      Raw Genotype Array (`.txt`)
+                    </span>
                   </div>
-                  <div className="rounded-lg bg-rg-bg-primary p-3 border border-rg-border/60">
-                    <div className="text-rg-purple-300 font-bold mb-1">23andMe Raw Data (.txt):</div>
-                    <div># rsid      chromosome  position   genotype</div>
-                    <div>rs2802292   6           108659993  TG</div>
-                    <div>rs7412      19          44908822   CT</div>
-                  </div>
+                  <pre
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      background: 'rgba(10,14,26,0.75)',
+                      border: '1px solid rgba(56,78,122,0.2)',
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: '#8899b8',
+                      overflowX: 'auto',
+                      lineHeight: 1.6,
+                    }}
+                  >
+{`# rsid      chromosome  position   genotype
+rs2802292   6           108659993  TG
+rs7412      19          44908822   CT`}
+                  </pre>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Security note */}
-          <div className="flex items-start gap-4 rounded-xl border border-rg-border bg-rg-bg-secondary/50 p-4">
-            <Lock className="mt-0.5 text-rg-success shrink-0" size={18} />
-            <div>
-              <h4 className="text-xs font-bold text-rg-text-primary">100% Real Variant Calculation · Zero Demo Leakage</h4>
-              <p className="mt-0.5 text-xs text-rg-text-secondary leading-relaxed">
-                In Real Mode, ReguloMe calculates disease domains, chromosome counts, tissue expression, and network cascades strictly from your uploaded or selected variants — with zero demo padding.
-              </p>
-            </div>
+          {/* ── PROVENANCE & PRIVACY FOOTER STRIP ── */}
+          <div
+            style={{
+              padding: '20px 24px',
+              borderRadius: 20,
+              background: 'rgba(17,24,39,0.65)',
+              border: '1px solid rgba(56,78,122,0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+            }}
+          >
+            <Shield size={20} color="#0ae8d2" style={{ flexShrink: 0 }} />
+            <p style={{ fontSize: 12, color: '#8899b8', lineHeight: 1.6 }}>
+              <strong style={{ color: '#e8edf5' }}>Zero Demo Padding · Browser-Native Provenance:</strong>{' '}
+              In Real Mode, ReguloMe computes your disease burden, tissue expression matrix, 3D chromosome territories, and regulatory network strictly from your verified variants via live NCBI ClinVar, dbSNP, gnomAD, CADD, and Ensembl VEP queries.
+            </p>
           </div>
         </motion.div>
       ) : (
+        /* ── GOD-MODE SYNTHESIS TERMINAL ── */
         <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="overflow-hidden rounded-2xl border border-rg-purple-500/30 bg-rg-bg-card shadow-glow-purple"
+          style={{
+            overflow: 'hidden',
+            borderRadius: 24,
+            background: 'rgba(17,24,39,0.92)',
+            border: '1px solid rgba(139,92,246,0.32)',
+            boxShadow: '0 0 48px rgba(139,92,246,0.15)',
+          }}
         >
           {/* Terminal Header */}
-          <div className="flex items-center justify-between border-b border-rg-border bg-rg-bg-primary px-6 py-4">
-            <div className="flex items-center gap-3">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 24px',
+              background: 'rgba(10,14,26,0.9)',
+              borderBottom: '1px solid rgba(56,78,122,0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {['#ef4444', '#f59e0b', '#10b981'].map((c) => (
-                <div key={c} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
+                <div key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c }} />
               ))}
-              <Terminal size={16} className="ml-2 text-rg-purple-400" />
-              <span className="font-mono text-sm font-bold tracking-wider text-rg-text-primary">
-                regulome-analysis — {file?.name}
+              <Terminal size={15} style={{ marginLeft: 8, color: '#a78bfa' }} />
+              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#e8edf5' }}>
+                regulome-synthesis — {file?.name}
               </span>
             </div>
-            <div className="font-mono text-sm font-bold text-rg-purple-400">{progress}%</div>
+            <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: '#0ae8d2' }}>
+              {progress}%
+            </span>
           </div>
 
           {/* Progress Bar */}
-          <div className="h-1.5 w-full bg-rg-bg-primary overflow-hidden">
+          <div style={{ height: 5, width: '100%', background: 'rgba(10,14,26,0.9)', overflow: 'hidden' }}>
             <motion.div
-              className="h-full"
-              style={{ background: 'linear-gradient(90deg, #7c3aed, #0ae8d2)' }}
+              style={{ height: '100%', background: 'linear-gradient(90deg, #7c3aed, #0ae8d2)' }}
               initial={{ width: '0%' }}
               animate={{ width: `${progress}%` }}
-              transition={{ ease: 'linear', duration: 0.4 }}
+              transition={{ ease: 'linear', duration: 0.35 }}
             />
           </div>
 
-          {/* Terminal Window */}
-          <div className="h-[360px] w-full bg-[#060a14] p-6 font-mono text-sm overflow-y-auto">
+          {/* Terminal Log Window */}
+          <div
+            style={{
+              height: 360,
+              width: '100%',
+              background: '#060a14',
+              padding: '24px 28px',
+              fontFamily: 'monospace',
+              fontSize: 13,
+              overflowY: 'auto',
+            }}
+          >
             <AnimatePresence>
               {logs.map((log, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="mb-2 leading-relaxed"
-                  style={{ color: log.color, fontWeight: log.bold ? 700 : 400 }}
+                  style={{
+                    marginBottom: 8,
+                    lineHeight: 1.6,
+                    color: log.color,
+                    fontWeight: log.bold ? 700 : 400,
+                  }}
                 >
                   {log.text || '\u00A0'}
                 </motion.div>
               ))}
             </AnimatePresence>
             <div ref={logsEndRef} />
-            {isAnalyzing && !done && !error && (
-              <motion.span
-                animate={{ opacity: [1, 0, 1] }}
-                transition={{ duration: 0.9, repeat: Infinity }}
-                className="inline-block w-2 h-4 bg-emerald-400 align-middle ml-1"
-              />
-            )}
           </div>
 
-          {/* Step counter */}
-          <div className="border-t border-rg-border px-6 py-3 text-xs text-rg-text-muted font-mono bg-rg-bg-primary flex justify-between">
-            <span>Running live regulatory synthesis against public genomic databases…</span>
-            <span className="text-rg-purple-400">
-              {progress < 100 ? `${progress}% complete` : done ? '✅ Done — redirecting…' : '⏳ Finalizing…'}
+          {/* Terminal Footer */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 24px',
+              background: 'rgba(10,14,26,0.9)',
+              borderTop: '1px solid rgba(56,78,122,0.22)',
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: '#6b7d9c',
+            }}
+          >
+            <span>Synthesizing 5-layer regulatory twin from verified genomic variants…</span>
+            <span style={{ color: '#a78bfa', fontWeight: 700 }}>
+              {progress < 100 ? `${progress}% complete` : done ? '✅ Complete — opening Dashboard…' : '⏳ Finalizing…'}
             </span>
           </div>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

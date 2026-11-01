@@ -25,8 +25,6 @@ import {
 import { GlassCard, StatCard, Badge, EvidenceBadge, Button, StatCardSkeleton, ChartSkeleton, TableSkeleton, ErrorState } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { apiGetRealDashboard } from '@/services/api';
 import { useRegulatoryProfile } from '@/hooks/useRegulatoryProfile';
 
 
@@ -416,19 +414,6 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { currentPersona, mode, userName, hasUploadedData } = useApp();
   const { profile, isLoading, error, refresh: refetch } = useRegulatoryProfile();
-  const [realData, setRealData] = useState<any>(null);
-  const [realLoading, setRealLoading] = useState(false);
-
-  // Fetch real user data when in real mode and data is available
-  useEffect(() => {
-    if (mode === 'real' && hasUploadedData) {
-      setRealLoading(true);
-      apiGetRealDashboard()
-        .then(d => { if (d?.has_data) setRealData(d); })
-        .catch(() => {})
-        .finally(() => setRealLoading(false));
-    }
-  }, [mode, hasUploadedData]);
 
   const stats = profile.dashboard.stats;
 
@@ -568,7 +553,7 @@ export default function DashboardPage() {
               </h1>
               {mode === 'real' ? (
                 <p style={{ fontSize: 15, color: '#a78bfa', lineHeight: 1.5 }}>
-                  Authenticated workspace · Live API endpoints active · Bookmarks persist to database
+                  {profile.meta.filename || 'Active Genome Panel'} · {stats.totalVariants.toLocaleString()} regulatory variants analysed across {profile.expression.geneSummaries.length} target genes
                 </p>
               ) : currentPersona ? (
                 <p style={{ fontSize: 15, color: '#8899b8', lineHeight: 1.5 }}>
@@ -614,85 +599,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
-
-      {/* ── Real Mode Feature Strip (only in real mode) ── */}
-      {mode === 'real' && (
-        <motion.div variants={stagger.item} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { icon: '⚡', label: 'Live APIs', desc: 'Ensembl · ClinVar · GTEx', color: '#a78bfa' },
-            { icon: '💾', label: 'Persistent Data', desc: 'Bookmarks saved to DB', color: '#c084fc' },
-            { icon: '🔒', label: 'Authenticated', desc: `Signed in as ${userName?.split(' ')[0] ?? 'User'}`, color: '#8b5cf6' },
-            { icon: '🧬', label: 'Research Workbench', desc: 'Query real genomic data', color: '#7c3aed' },
-          ].map((f) => (
-            <div key={f.label} style={{
-              padding: 14, borderRadius: 16,
-              background: 'rgba(139,92,246,0.06)',
-              border: '1px solid rgba(139,92,246,0.18)',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <span style={{ fontSize: 20 }}>{f.icon}</span>
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: f.color, marginBottom: 2 }}>{f.label}</p>
-                <p style={{ fontSize: 11, color: '#6b7d9c' }}>{f.desc}</p>
-              </div>
-            </div>
-          ))}
-        </motion.div>
-      )}
-
-      {/* ── Real Mode Stats (only when real data is available) ── */}
-      {mode === 'real' && realData && (
-        <motion.div variants={stagger.item}>
-          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a78bfa' }}>
-              YOUR REAL GENOMIC DATA
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(139,92,246,0.2)' }} />
-            <span style={{ fontSize: 11, color: '#6b7d9c' }}>{realData.filename}</span>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Variants', value: realData.stats?.total_variants?.toLocaleString() ?? '—', sub: 'Analyzed', color: '#0ae8d2' },
-              { label: 'Pathogenic', value: (realData.stats?.pathogenic_count ?? 0) + (realData.stats?.likely_pathogenic_count ?? 0), sub: 'P + LP variants', color: '#ef4444' },
-              { label: 'High Impact', value: realData.stats?.high_impact_count ?? 0, sub: 'VEP HIGH impact', color: '#f59e0b' },
-              { label: 'Unique Genes', value: realData.stats?.unique_genes ?? 0, sub: 'Genes affected', color: '#8b5cf6' },
-            ].map(s => (
-              <div key={s.label} style={{
-                padding: '16px 18px', borderRadius: 16,
-                background: `${s.color}08`,
-                border: `1px solid ${s.color}25`,
-              }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7d9c', marginBottom: 8 }}>{s.label}</p>
-                <p style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</p>
-                <p style={{ fontSize: 11, color: '#6b7d9c', marginTop: 4 }}>{s.sub}</p>
-              </div>
-            ))}
-          </div>
-          {realData.top_variants?.length > 0 && (
-            <div style={{ marginTop: 16, padding: 16, borderRadius: 16, border: '1px solid rgba(139,92,246,0.18)', background: 'rgba(139,92,246,0.04)' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                Your Top Priority Variants
-              </p>
-              <div className="grid gap-2">
-                {realData.top_variants.slice(0, 5).map((v: any) => (
-                  <div key={v.rsid} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(10,14,26,0.5)' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#0ae8d2', minWidth: 100 }}>{v.rsid}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#e8edf5', flex: 1 }}>{v.gene_name || '—'}</span>
-                    <span style={{ fontSize: 11, color: '#8899b8' }}>{v.clinical_significance}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: v.impact === 'HIGH' ? '#ef4444' : v.impact === 'MODERATE' ? '#f59e0b' : '#6b7d9c' }}>{v.impact_score?.toFixed(0)}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => navigate('/app/variants')}
-                style={{ marginTop: 12, fontSize: 12, color: '#a78bfa', cursor: 'pointer', background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                View all variants <ArrowRight size={12} />
-              </button>
-            </div>
-          )}
-        </motion.div>
-      )}
 
       {/* ── Stats Row ── */}
 
